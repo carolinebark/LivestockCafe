@@ -1,0 +1,521 @@
+---
+title: "LiveSockCafe_location"
+author: "Caroline Bark"
+date: "2024-02-21"
+output: html_document
+
+---
+```{r setup,echo=FALSE}
+knitr::opts_chunk$set(
+  fig.pos = "H"
+)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+```
+
+```{r libraries, paged.print=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(leaflet)
+library(webshot)
+library(viridis)
+library(kableExtra)
+library(knitr)
+library(readr)
+library(MASS)
+library(gridExtra)
+library(ggridges)
+library(RColorBrewer)
+library(hrbrthemes)
+library(ggthemes)
+library(tibble)
+library(treemapify)
+library(stringr)
+library(prettydoc)
+library(data.table)
+library(forcats)
+library(tidyr)
+library(gstat)
+library(sp)
+
+```
+
+
+This report highlights the preliminary data analysis of the LDSF data within the project Drylands Transform - Chepareria, Lokiriama (KE) and Matany and Rupa (UG).
+
+
+```{r LoadData, include=FALSE}
+
+
+ldsf.chep <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Chepareria_clean.csv", stringsAsFactors = TRUE))
+ldsf.loki <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Lokiriama_clean.csv", stringsAsFactors = TRUE))
+ldsf.mata.rupa <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Matany_Rupa_clean.csv", stringsAsFactors = TRUE))
+ldsf.kalama <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Kalama_clean.csv"), stringsAsFactors = TRUE)
+ldsf.chep_LC <- as_tibble(read.csv("../Data/Field data/ldsf_plots_dt_LCs_clean.csv"), stringsAsFactors = TRUE)
+
+ldsf.DT <- bind_rows(ldsf.chep, ldsf.loki, ldsf.mata.rupa, ldsf.kalama)
+ldsf.LC <- bind_rows(ldsf.chep_LC)
+
+#Rename the LC data set so that the data sets matches 
+ldsf.LC <- ldsf.LC %>%
+  rename(Site=site, Cluster=cluster, Erosion1 = erosion1, Erosion2 = erosion2, Erosion3 = erosion3, Erosion4 = erosion4, Plot=plot)
+
+#Rename the Site names so that it matches the ldsf.DT 
+ldsf.LC$Site <- gsub("Chepararia_LC", "Chepareria", ldsf.LC$Site)
+ldsf.LC$Site <- gsub("Lokiriama_LC", "Lokiriama", ldsf.LC$Site)
+
+
+
+
+#write_csv(ldsf.DT.DR, "C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Dataverse/table_plotproperties_DT_DR.csv")
+
+
+```
+
+
+```{r LoadDataSummary, echo=TRUE}
+
+
+
+# Create a summary table for ldsf.DT
+plots.summary_dt <- ldsf.DT %>%
+  group_by(Site, Cluster) %>%
+  summarise(Number = n()) 
+knitr::kable(plots.summary_dt, digits = 2, caption = "Table 1. Number of sampled plots per cluster and site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+# Create a summary table for ldsf.LC
+plots.summary_lc <- ldsf.LC %>%
+  group_by(Site, Cluster) %>%
+  summarise(Number = n()) 
+knitr::kable(plots.summary_lc, digits = 2, caption = "Table 1. Number of sampled plots per cluster and site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+
+# Add a DataType column
+ldsf.DT$DataType <- 'DT' # Marking DT rows
+ldsf.LC$DataType <- 'LC' # Marking LC rows
+
+# Combine ldsf.DT and ldsf.LC
+ldsf_combined <- bind_rows(
+  ldsf.DT,
+  ldsf.LC
+)
+
+
+
+
+
+
+```
+
+
+
+
+```{r leafletPlotCultMgd, fig.cap="Map 1. Location of the LDSF plots and Livestock Cafe plots"}
+
+
+leaflet(ldsf_combined) %>%
+  addProviderTiles(provider = "Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  addCircleMarkers(
+    data = ldsf_combined %>% filter(DataType == "DT"),
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = 2,
+    stroke = TRUE,
+    color = "blue", # DT plots in blue
+    label = ~paste0(Site, Cluster, ".", Plot)
+  ) %>%
+  addCircleMarkers(
+    data = ldsf_combined %>% filter(DataType == "LC"),
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = 2,
+    stroke = TRUE,
+    color = "red", # LC plots in red
+    label = ~paste0(Site, Cluster, ".", Plot)
+  ) %>%
+  addLayersControl(baseGroups = c("General", "Topo", "Satelite"))
+
+
+
+```
+
+
+
+
+Soil erosion
+
+Erosion is the most widespread form of land degradation. In each sub-plot (n=4) per plot, signs of erosion are recorded and classified into None/Sheet/Rill/Gully.
+
+Based on this, a visible erosion score (VisErosion) is calculated by adding the subplot visible erosion variable (0 - no erosion, 1 erosion) in all 4 subplots. A severe erosion index (SEVEREERO) is also calculated (0 - no severe erosion, 1 severe erosion), with 1 meaning that VisErosion >= 3. 
+
+
+```{r ErosionCalculations}
+
+
+ldsf_combined <- ldsf_combined %>%
+  mutate(
+    VisErosion1 = recode(Erosion1, "none" = 0, .default = 1),
+    VisErosion2 = recode(Erosion2, "none" = 0, .default = 1),
+    VisErosion3 = recode(Erosion3, "none" = 0, .default = 1),
+    VisErosion4 = recode(Erosion4, "none" = 0, .default = 1),
+    VisErosion = VisErosion1 + VisErosion2 + VisErosion3 + VisErosion4,
+    SEVEREERO = ifelse(VisErosion >= 3, 1, 0)
+  )
+
+#Calculate the mean of VisErosion for the entire data set 
+mean_vis_erosion <- mean(ldsf_combined$VisErosion, na.rm = TRUE)
+
+#Calculate the mean of VisErosion for each cluster
+cluster_means <- ldsf_combined %>%
+  group_by(Site, Cluster) %>%
+  summarise(MeanVisErosion = mean(VisErosion, na.rm = TRUE)) %>%
+  ungroup()
+
+
+# Calculate the prevalence of severe erosion for the entire data set 
+eros.preval.cluster <- ldsf_combined %>%
+  group_by(Site, Cluster, DataType) %>% 
+  summarise(
+    TotalPlots = n(),
+    SevereErosionPlots = sum(SEVEREERO == 1),
+    .groups = 'drop'
+  ) %>%
+  mutate(FrequencySevereErosion = SevereErosionPlots / TotalPlots)
+
+
+
+
+
+```
+
+```{r ErosionGraphsBar, fig.cap="Percentage of plots with severe erosion per cluster", out.width="100%", fig.height=9}
+
+
+ggplot(eros.preval.cluster, aes(x = factor(Cluster), y = FrequencySevereErosion * 100, fill = DataType)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.75), alpha = 0.9) +
+  scale_fill_manual(values = c("DT" = "#0073C2FF", "LC" = "#EFC000FF")) +
+  theme_ipsum(base_size = 14) +
+  labs(
+    title = "Percentage of Plots with Severe Erosion per Cluster",
+    x = "Cluster",
+    y = "Percentage of Severe Erosion",
+    fill = "Data Type"
+  ) +
+  facet_wrap(~Site, ncol=1, scales = "free_x") +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(angle = 0, hjust = 1, size = 12), # Rotate x-axis labels for readability
+    plot.margin = margin(10, 10, 10, 10) 
+  )
+
+ggsave(file = "../Images/ErosionPrevalencePercentage.jpeg",
+       width = 20,
+       height = 40,
+       units = "cm",
+       dpi = 600)
+
+```
+
+
+```{r ErosionGraph, fig.cap="The plot distributions for VisErosion for each cluster, with global mean and Poisson distribution", out.width="100%", fig.height=9}
+
+
+# Plotting the distribution of VisErosion, with cluster-specific and global mean lines
+ggplot(ldsf_combined, aes(x = VisErosion)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1, color = "black", fill = "skyblue") +
+  facet_grid(Site ~ Cluster, scales = "free") +
+  labs(title = "Distribution of VisErosion by Cluster within Sites", 
+       x = "VisErosion", 
+       y = "Density") +
+  theme_minimal() +
+  geom_vline(data = cluster_means, aes(xintercept = MeanVisErosion), linetype = "dashed", color = "black", size = 1) +
+  geom_vline(xintercept = mean_vis_erosion, linetype = "dashed", color = "red", size = 1) +
+  geom_text(aes(x = mean_vis_erosion, y = 0, label = sprintf(" %.2f", mean_vis_erosion)), color = "red", vjust = -1, hjust = 1.1, data = data.frame(mean_vis_erosion = mean_vis_erosion))
+
+ggsave(file = "../Images/ErosionPrevalencePoissonAllClusters.jpeg",
+         width = 30,
+         height = 30,
+         units = "cm",
+         dpi = 600)
+
+
+
+
+```
+
+
+```{r ErosionGraph, fig.cap="The plot distribution for VisErosion for each cluster in Cheppareria, with mean and Poisson distribution", out.width="100%", fig.height=9}
+
+
+# Data set with only site Chepareria 
+ldsf_combined_cheperaria <- ldsf_combined %>%
+  filter(Site == "Chepareria")
+
+# Calculate maxVisErosion, mean_vis_erosion_cheperaria, and cluster_means_cheperaria 
+maxVisErosion <- max(ldsf_combined_cheperaria$VisErosion, na.rm = TRUE)
+mean_vis_erosion_cheperaria <- mean(ldsf_combined_cheperaria$VisErosion, na.rm = TRUE)
+cluster_means_cheperaria <- ldsf_combined_cheperaria %>%
+  group_by(Cluster) %>%
+  summarise(MeanVisErosion = mean(VisErosion, na.rm = TRUE)) %>%
+  ungroup()
+
+# Calculate the Poisson-distribution for each cluster in Chepareria
+poisson_data <- lapply(unique(ldsf_combined_cheperaria$Cluster), function(cluster) {
+  lambda <- cluster_means_cheperaria$MeanVisErosion[cluster_means_cheperaria$Cluster == cluster]
+  data.frame(
+    Cluster = cluster,
+    VisErosion = 0:maxVisErosion,
+    PoissonFreq = dpois(0:maxVisErosion, lambda)
+  )
+}) %>% 
+  bind_rows()
+
+# Plot
+if (nrow(poisson_data) > 0) {
+  g <- ldsf_combined_cheperaria %>%
+    ggplot(aes(x = VisErosion)) +
+    geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
+    facet_wrap(~ Cluster, scales = "free_y") +
+    labs(x = "VisErosion", y = "Densitet") +
+    #geom_line(data = poisson_data, aes(x = VisErosion, y = PoissonFreq, group = Cluster), color = "red", size = 1) +
+    geom_vline(data = cluster_means_cheperaria, aes(xintercept = MeanVisErosion), linetype = "dashed", color = "black", size = 1) +
+    geom_vline(xintercept = mean_vis_erosion_cheperaria, color = "red", linetype = "dashed", size = 1) +
+    annotate("text", x = mean_vis_erosion_cheperaria, y = 0.9, label = sprintf("Chepareria medel: %.2f", mean_vis_erosion_cheperaria), color = "red", size = 3, hjust = 1) +
+    geom_text(data = cluster_means_cheperaria, aes(x = MeanVisErosion, y = 0.05, label = sprintf("%.2f", MeanVisErosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
+  
+  print(g)
+  
+  ggsave(file = "../Images/ErosionPrevalencePoissonChepareriaCluster.jpeg",
+         width = 20,
+         height = 40,
+         units = "cm",
+         dpi = 600)
+} else {
+  print("No data")
+}
+
+
+```
+
+```{r ErosionGraph, fig.cap=" The plot distribution for VisErosion for cluster 7, 8 and 17", out.width="100%", fig.height=9}
+
+library(dplyr)
+library(ggplot2)
+
+# Filter the dataset to only include data for Chepareria and clusters 7, 8, and 17
+ldsf_specific_clusters <- ldsf_combined %>%
+  filter(Site == "Chepareria", Cluster %in% c(7, 8, 17))
+
+
+#Calculate maxVisErosion and the global mean of VisErosion for the selected clusters
+maxVisErosion_specific <- max(ldsf_specific_clusters$VisErosion, na.rm = TRUE)
+mean_vis_erosion_specific <- mean(ldsf_specific_clusters$VisErosion, na.rm = TRUE)
+
+#Calculate the mean of VisErosion for each of the selected clusters
+cluster_means_specific <- ldsf_specific_clusters %>%
+  group_by(Cluster) %>%
+  summarise(MeanVisErosion = mean(VisErosion, na.rm = TRUE)) %>%
+  ungroup()
+
+# Poisson distribution
+poisson_data_specific <- lapply(unique(ldsf_specific_clusters$Cluster), function(cluster) {
+  lambda <- cluster_means_specific$MeanVisErosion[cluster_means_specific$Cluster == cluster]
+  data.frame(
+    Cluster = cluster,
+    VisErosion = 0:maxVisErosion_specific,
+    PoissonFreq = dpois(0:maxVisErosion_specific, lambda)
+  )
+}) %>% 
+  bind_rows()
+
+# Plot
+if (nrow(poisson_data_specific) > 0) {
+  g <- ldsf_specific_clusters %>%
+    ggplot(aes(x = VisErosion)) +
+    geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
+    facet_wrap(~ Cluster, scales = "free_y") +
+    labs(x = "VisErosion", y = "Densitet") +
+    #geom_line(data = poisson_data_specific, aes(x = VisErosion, y = PoissonFreq, group = Cluster), color = "red", size = 1) +
+    geom_vline(data = cluster_means_specific, aes(xintercept = MeanVisErosion), linetype = "dashed", color = "black", size = 1) +
+    geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1) +
+    annotate("text", x = mean_vis_erosion_specific, y = 0.9, label = sprintf("Specifika kluster medel: %.2f", mean_vis_erosion_specific), color = "red", size = 3, hjust = 1) +
+    geom_text(data = cluster_means_specific, aes(x = MeanVisErosion, y = 0.05, label = sprintf("%.2f", MeanVisErosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
+
+  print(g)
+  
+  ggsave(file = "../Images/ErosionPrevalencePoissonChepareriaClusters7_8_17.jpeg",
+         width = 20,
+         height = 40,
+         units = "cm",
+         dpi = 600)
+} else {
+  print("No data")
+
+}
+
+```
+
+```{r ErosionGraph, fig.cap="Semivariagram, the whole data set", out.width="100%", fig.height=9}
+
+
+# Skapa SpatialPointsDataFrame för hela datasetet
+ldsf_combined_spatial <- ldsf_combined
+coordinates(ldsf_combined_spatial) <- ~Longitude + Latitude
+proj4string(ldsf_combined_spatial) <- CRS("+proj=longlat +datum=WGS84")
+
+# Skapa SpatialPointsDataFrame för Chepareria
+ldsf_combined_cheperaria_spatial <- ldsf_combined %>%
+  filter(Site == "Chepareria")
+
+coordinates(ldsf_combined_cheperaria_spatial) <- ~Longitude + Latitude
+proj4string(ldsf_combined_cheperaria_spatial) <- CRS("+proj=longlat +datum=WGS84")
+
+
+
+```
+
+```{r ErosionGraph, fig.cap="Semivariagram, clusters in whole data set", out.width="100%", fig.height=9}
+
+
+library(gstat)
+
+# Beräkna semivariogram för hela datasetet
+visErosion_variogram_total <- variogram(VisErosion~1, data = ldsf_combined_spatial)
+
+# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna
+# Exempel: vgm(nugget, model type, range, sill)
+fit_total <- fit.variogram(visErosion_variogram_total, model = vgm(1, "Sph", 1, 1))
+
+# Plotta både de beräknade punkterna och den anpassade modellen
+plot(visErosion_variogram_total, model = fit_total, main = "Semivariogram for VisErosion - Whole Dataset",
+     pch = 20, col = "#FF5733", cex = 2)
+
+
+```
+
+```{r ErosionGraph, fig.cap="Semivariagram, clusters in Cheppeirera", out.width="100%", fig.height=9}
+
+# Beräkna semivariogram för Chepareria
+visErosion_variogram_cheperaria <- variogram(VisErosion~1, data = ldsf_combined_cheperaria_spatial)
+
+# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna för Chepareria
+fit_cheperaria <- fit.variogram(visErosion_variogram_cheperaria, model = vgm(1, "Sph", 1, 1))
+
+# Plotta både de beräknade punkterna och den anpassade modellen för Chepareria
+plot(visErosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariogram for VisErosion in Chepareria",
+     pch = 20, col = "#FF5733", cex = 2)
+
+
+```
+
+
+```{r ErosionGraph, fig.cap="Visible erosion score in each plot", out.width="100%", fig.height=9}
+
+pal_ero <- colorNumeric(palette = "YlOrBr", domain = c(0:4), reverse=TRUE)
+
+leaflet() %>%
+  addProviderTiles(provider="Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  # För icke-Cluster 17
+  addCircleMarkers(
+    data = ldsf_combined %>%
+      filter(VisErosion == 0 & Cluster != 17),
+    group = "No visible erosion",
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = 6,
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    color = ~pal_ero(VisErosion),
+    label = ~paste0(Site, " ", Cluster, ".", Plot)
+  ) %>%
+  addCircleMarkers(
+    data = ldsf_combined %>%
+      filter(VisErosion != 0 & Cluster != 17),
+    group = "Visible erosion",
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = 6,
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    color = ~pal_ero(VisErosion),
+    label = ~paste0(Site, " ", Cluster, ".", Plot)
+  ) %>%
+  # För Cluster 17, gör ifyllda ciklar
+  addCircleMarkers(
+    data = ldsf_combined %>%
+      filter(Cluster == 17),
+    group = "Cluster 17",
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = 6,  
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    fillColor = ~pal_ero(VisErosion),  # Använd fillColor för att skilja dessa markörer
+    color = ~pal_ero(VisErosion),
+    fillOpacity = 1,
+    label = ~paste0(Site, " ", Cluster, ".", Plot)
+  ) %>%
+  addLayersControl(baseGroups = c("Satelite", "General", "Topo"),
+                   overlayGroups = c("Visible erosion", "No visible erosion", "Cluster 17")) %>%
+  addLegend(pal = pal_ero, values = c(0:4), position = "bottomright")
+
+
+
+
+```
+
+
+
+
+```{r ErosionGraph, fig.cap="Figure Herbescus cover in Chepareria ", out.width="100%", fig.height=9}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+
+# Assuming ldsf_combined is already loaded and contains the data
+
+
+# Pivot the data
+herb_cover_long <- ldsf_combined_cheperaria %>%
+  pivot_longer(cols = starts_with("HerbCovRate"), names_to = "HerbCovRate", values_to = "value") %>%
+  mutate(rating = case_when(
+    value == 0 ~ "absent",
+    value == 1 ~ "<4%",
+    value == 2 ~ "4-15%",
+    value == 3 ~ "15-40%",
+    value == 4 ~ "40-65%",
+    TRUE ~ ">65%"
+  ))
+
+# Summarize the data by Cluster instead of Site
+herb_cover_summary <- herb_cover_long %>%
+  group_by(Cluster, rating) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  mutate(freq = count / sum(count))
+
+# Plot the data, faceting by Cluster
+ggplot(herb_cover_summary, aes(x = reorder(rating, -freq), y = freq * 100, fill = rating)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)") +
+  ggtitle("Herbaceous Cover Rating by Cluster (%)") +
+  facet_wrap(~Cluster) +  # Change this to facet by Cluster
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_gray(base_size = 10)
+
+# Save the plot
+ggsave(file = "HerbaceousCoverRatingCluster.jpeg", width = 25, height = 15, units = "cm", dpi = 600)
+
+```

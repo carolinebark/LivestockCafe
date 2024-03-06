@@ -1,0 +1,2336 @@
+---
+title: 'Biophysical basline for the Drylands Transform sites'
+author: "Aida Bargués-Tobella, Leigh Winowiecki, Tor Vågen"
+date: "Preliminary Report"
+output:
+  html_document: 
+    theme: cosmo
+  pdf_document: default
+  word_document: default
+always_allow_html: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup,echo=FALSE}
+knitr::opts_chunk$set(
+  fig.pos = "H"
+)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+```
+
+```{r libraries, paged.print=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(leaflet)
+library(webshot)
+library(viridis)
+library(kableExtra)
+library(knitr)
+library(readr)
+library(MASS)
+library(gridExtra)
+library(ggridges)
+library(RColorBrewer)
+library(hrbrthemes)
+library(ggthemes)
+library(tibble)
+library(treemapify)
+library(stringr)
+library(prettydoc)
+library(data.table)
+library(forcats)
+
+```
+
+
+```{r DTcolors, include = FALSE}
+
+#DT colors
+# Browns & oranges
+  #be6a1c
+  #e8902b
+  #e4974f
+  #b18313
+
+# whites and ivory
+  #e8dbb9
+  #e7e5d8
+
+# blues
+  #aebad0
+  #b4c9e8
+
+# greens
+  #647007
+  #929f8e
+
+```
+
+
+This report highlights the preliminary data analysis of the LDSF data within the project Drylands Transform - Chepareria, Lokiriama (KE) and Matany and Rupa (UG).
+
+
+```{r LoadData, include=FALSE}
+
+#LDSF plot properties table
+
+ldsf.chep <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Chepareria_clean.csv",
+                       stringsAsFactors = TRUE))
+
+ldsf.loki <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Lokiriama_clean.csv",
+                       stringsAsFactors = TRUE))
+
+ldsf.mata.rupa <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Matany_Rupa_clean.csv",
+                       stringsAsFactors = TRUE))
+
+ldsf.kalama <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Kalama_clean.csv"),
+                         stringsAsFactors = TRUE)
+
+ldsf.chep_LC <- as_tibble(read.csv("../Data/Field data/ldsf_plots_dt_LCs_clean.csv"),
+                         stringsAsFactors = TRUE)
+
+
+#ldsf.DT.DR <- bind_rows(ldsf.chep, ldsf.loki, ldsf.mata.rupa, ldsf.kalama)
+ldsf.DT <- bind_rows(ldsf.chep, ldsf.loki, ldsf.mata.rupa)
+ldsf.LC <- bind_rows(ldsf.chep, ldsf.loki, ldsf.mata.rupa)
+
+glimpse(ldsf.DT)
+
+#write_csv(ldsf.DT.DR, "C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Dataverse/table_plotproperties_DT_DR.csv")
+
+
+
+
+
+```
+
+```{r LoadDataSummary, include=FALSE}
+
+plots.summary <- ldsf.DT %>%
+  group_by(Site, Cluster) %>%
+  summarise(Number = n()) 
+
+knitr::kable(plots.summary, digits = 2, caption = "Table 1. Number of sampled plots per cluster and site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+plots.summary
+
+```
+
+
+
+## Cultivated vs non-cultivated plots
+
+In the LDSF, cultivated plots include agricultural fields (both annual and perennial crops) and woodlots. Agricultural fields that have been fallowed for more than a year are not classified as being cultivated. 
+
+Most of the sampled plots were not cultivated, in particular in the two pastoralist sites - Lokiriama and Rupa (Table 1). 
+
+```{r leafletPlotCultMgd, fig.cap="Map 1. Location of the LDSF plots, indicating whether they are cultivated or not"}
+
+pal_cul = colorFactor(palette ="viridis", ldsf.DT$PlotCultMgd)
+
+leaflet(ldsf.DT) %>%
+  addProviderTiles(provider="Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  addCircleMarkers(
+    lng = ~Longitude,
+    lat = ~ Latitude,
+    radius = 2,
+    stroke = TRUE,
+    color = ~ pal_cul(PlotCultMgd),
+    label = ~ paste0(Site, Cluster, ".", Plot)
+    ) %>%
+  addLayersControl(baseGroups = c("General","Topo","Satelite")) %>%
+  addLegend(pal = pal_cul,
+            values = ~PlotCultMgd)
+
+```
+
+
+```{r SummaryandCultivated}
+
+cult.DT<- ldsf.DT %>%
+  group_by(Site, PlotCultMgd) %>%
+  summarise(count = n())%>%
+  mutate(freq = count / sum(count))
+
+knitr::kable(cult.DT, digits = 2, caption = "Table 1. Number and frequency of sampled plots under cultivation vs no cultivation in the different sites" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+```
+
+
+## Land Ownership
+
+Land ownership was predominately communal (Table 2).
+
+```{r LandOwnership}
+
+ownership.DT <- ldsf.DT %>%
+  group_by(Site,LandOwnership) %>%
+  summarise(count = n()) %>%
+  mutate(freq = count / sum(count)) 
+
+knitr::kable(ownership.DT, digits = 2, caption = "Table 2. Number and frequency of sampled plots under different land ownership classes" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+```
+
+## Vegetation Structure
+
+The LDSF uses the FAO Land Cover Classification System (LCCS), which was developed in the context of the FAO-AFRICOVER project. Each sampled plot was classified by the predominant vegetation structure. Figure 1 shows the number of plots per category.
+
+```{r VegStructure, fig.cap="Figure 1a. Number of sampled plots per vegetation structure class in each site",out.width="100%"}
+
+cols.DT <- c("#be6a1c", "#929f8e", "#e8dbb9", "#aebad0", "#b18313", "#647007", "#e4974f", "#947750" )
+
+ldsf.DT.VegStr <- ldsf.DT %>%
+  group_by(Site, VegStructure) %>%
+  summarise(count = n()) %>%
+  mutate(freq = count / sum(count))
+
+ldsf.DT.VegStr %>% 
+  ggplot(
+    aes(x = Site,
+        y = count,
+        fill = factor(VegStructure))) + 
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  ylab("# of plots")+
+  #ggtitle("Vegetation Structure")+
+  theme_ipsum() +
+  scale_fill_manual(values = cols.DT) +
+  theme(legend.title=element_blank())
+  #scale_fill_ipsum() +
+  #scale_fill_viridis(discrete=TRUE,option="D",name="")
+
+ggsave(file = "../Images/dOMINANTvEGsTRUCTURE.jpeg",
+       width = 30,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r VegStructureTreeMap, fig.cap="Figure 1b. Percentage of vegetation structure class in each site",out.width="100%"}
+
+ldsf.DT.VegStr %>% 
+  ggplot(
+    aes(area = count,
+        #label = VegStructure,
+        fill = VegStructure,
+        )) +
+  geom_treemap(alpha = 0.9) +
+  #geom_treemap_text() +
+  facet_wrap(~ Site) +
+  theme_ipsum() +
+  scale_fill_manual(values = cols.DT)
+
+```
+
+## Dominant land use
+
+```{r LandUse, fig.cap="Figure 2. Dominant land use in each site",out.width="100%"}
+
+cols.DT2 <- c("#be6a1c", "#929f8e", "#e8dbb9", "#b18313", "#647007")
+
+ldsf.DT.LandUse <- ldsf.DT %>%
+  group_by(Site, dom_landuse) %>%
+  summarise(count = n()) %>%
+  mutate(freq = count / sum(count))
+
+ldsf.DT.LandUse %>% 
+  ggplot(
+    aes(x = Site,
+        y = count,
+        fill = factor(dom_landuse))) + 
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  ylab("# of plots")+
+  #ggtitle("Vegetation Structure")+
+  theme_ipsum() +
+  scale_fill_manual(values = cols.DT2) +
+  theme(legend.title=element_blank())
+  #scale_fill_ipsum() +
+  #scale_fill_viridis(discrete=TRUE,option="D",name="")
+
+ggsave(file = "../Images/DominantLandUse.jpeg",
+       #width = 20,
+       #height = 15,
+       #units = "cm",
+       dpi = 600)
+
+```
+
+
+## Woody vegetation
+
+In the LDSF, shrubs are classified as woody vegetation between 1.5 m and 3.0 m tall, and trees as woody vegetation above 3.0 m tall. 
+
+### Woody cover
+
+Each LDSF sub-plot is assessed in terms of woody and herbaceous cover, with both scored using a modified Braun-Blanquet approach into either “absent”, “<4%”, “4-15%”, “15-40%”, “40-65%”, or “>65%” cover.
+
+```{r WoodycoverPerSite, fig.cap="Figure 3. Woody cover rating by site", out.width="100%"}
+
+melt.DT.wood <-melt(ldsf.DT,
+                   id.vars = c("Site", "Cluster", "Plot"),
+                   measure.vars = c("WdCovRate1","WdCovRate2","WdCovRate3", "WdCovRate4")) %>%
+  mutate(rating = ifelse(value==0, "absent",
+                         ifelse(value==1, "<4",
+                                ifelse(value==2, "4-15",
+                                       ifelse(value==3, "15-40",
+                                              ifelse(value==4, "40-65",
+                                                     ">65"))))))
+
+
+DT.wood.site <- melt.DT.wood %>% group_by(Site, rating) %>%
+  summarise(count = n(),
+            value = first(value))%>%
+  mutate(freq = (count / sum(count))) %>%
+  ungroup()
+
+
+DT.wood.site %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Woody Cover Rating (%)")+
+  #ggtitle("Woody Cover Rating (%)")+
+  theme_gray(base_size=10) +
+  facet_wrap(~Site) 
+
+
+ggsave(file = "../Images/WoodyCoverRatingSite.jpeg",
+       width = 25,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+
+  
+```
+
+
+```{r WoodycoverPerCluster, include = FALSE}
+
+
+DT.wood.site.cluster <- melt.DT.wood %>%
+  group_by(Site, Cluster, rating) %>%
+  summarise(count = n(),
+            value = first(value))%>%
+  mutate(freq = (count / sum(count))) %>%
+  ungroup()
+
+# Woody cover rating per cluster in Chepareria site...
+
+DT.wood.site.cluster %>%
+  filter (Site == "Chepareria") %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Woody Cover Rating (%)")+
+  ggtitle("Woody Cover Rating (%) in the 10 Plots per Cluster, Chepareria")+
+  theme_gray(base_size=10) +
+  facet_wrap(~Cluster) 
+
+
+ggsave(file = "../Images/WoodyCoverRatingChepa.jpeg",
+       #width = 20,
+       #height = 15,
+       #units = "cm",
+       dpi = 600)
+
+
+
+
+  
+```
+
+
+### Tree and Shrub Densities
+
+Tree and shrub densities are expressed as trees/ha.
+
+```{r TreeAndShrubDensity}
+
+#Shrub and tree density is measured in each sub-plot and expressed as individuals/subplot. Shrub and tree density at the plot level is calculated as the mean of the density for the 4 subplots, and expressed as trees/ha. Since each subplot is 100 m2, we need to multiply by 100
+
+ldsf.DT <- ldsf.DT %>%
+  mutate(
+    AvShrubDensity = as.integer ((ShSuPlDe1 + ShSuPlDe2 + ShSuPlDe3 + ShSuPlDe4)/ 4) * 100,
+    AvTreeDensity = as.integer ((TrSuPlDe1 + TrSuPlDe2 + TrSuPlDe3 + TrSuPlDe4)/ 4) * 100)
+  
+```
+
+```{r TreeShrubDensityTable}
+
+ldsf.DT.woodDens <- ldsf.DT %>%
+  group_by(Site, PlotCultMgd) %>%
+  summarise(count = n(),
+            mean_tree_density = mean(AvTreeDensity),
+            mean_shrub_density = mean(AvShrubDensity)) %>%
+  mutate(freq = count / sum(count))
+
+
+knitr::kable(ldsf.DT.woodDens %>%
+               dplyr::select(-freq),
+             digits = 0,
+             caption = "Table 3. Tree and shrub densities in cultivated and non-cultivated plots" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+```
+
+```{r TreeDensityBoxPlots,fig.cap="Figure 4. Tree densitiy by Site", out.width="100%"}
+
+# Boxplot tree density
+
+ldsf.DT %>%
+  ggplot()+
+  geom_boxplot(aes(
+    y = AvTreeDensity,
+    x = Site,
+    ),
+    fill = "#647007",
+    alpha = 0.8)+
+  #facet_wrap(~Site)+
+  coord_flip()+
+  xlab("")+
+  ylab(expression(paste('Tree density (trees ',ha^{-1},')')))+
+  theme(legend.position = "none")+
+  #ggtitle("Average tree density per site")+
+  theme_ipsum() 
+
+ggsave(file = "../Images/TreeDens.jpeg",
+       width = 20,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+```
+
+```{r TreeDensityBoxPlotsCultnoncult,fig.cap="Figure 5. Tree densitiy by site in cultivated and non-cultivated plots", out.width="100%"}
+
+# Boxplot tree density
+
+ldsf.DT %>%
+  ggplot()+
+  geom_boxplot(aes(
+    y = AvTreeDensity,
+    x = PlotCultMgd,
+    ),
+    fill = "#647007",
+    alpha = 0.8)+
+  facet_wrap(~Site)+
+  coord_flip()+
+  xlab("")+
+  ylab(expression(paste('Tree density (trees ',ha^{-1},')')))+
+  theme(legend.position = "none")+
+  #ggtitle("Average Tree Density in Cultivated and Non-cultivated Plots")+
+  theme_ipsum() 
+
+
+```
+
+
+```{r ShrubDensityBoxPlots, include = FALSE}
+
+# Boxplot shrub density
+
+ldsf.DT %>%
+  ggplot()+
+  geom_boxplot(aes(
+    y = AvShrubDensity,
+    x = PlotCultMgd),
+    fill = "#647007",
+    alpha = 0.8)+
+  facet_wrap(~Site)+
+  coord_flip()+
+  xlab("Plot Cultivated")+
+  ylab(expression(paste('Shrub density (shrubs ',ha^{-1},')')))+
+  theme(legend.position = "none")+
+  #ggtitle("Average Shrub Density in Cultivated and Non-cultivated Plots")+
+  theme_ipsum() 
+
+
+
+# # Violin plot shrub density
+# 
+# ldsf.DT %>%
+#   ggplot(aes(
+#     y = AvShrubDensity,
+#     x = PlotCultMgd))+
+#   geom_violin(fill = "burlywood1") +
+#   geom_boxplot(fill = "chartreuse4",
+#                col = "black",
+#                width = 0.03,
+#                alpha = 0.6)+
+#   facet_wrap(~Site)+
+#   coord_flip()+
+#   xlab("Plot Cultivated")+
+#   ylab(expression(paste('Shrub density (shrubs ',ha^{-1},')')))+
+#   theme(legend.position = "none")+
+#   #ggtitle("Average Shrub Density in Cultivated and Non-cultivated Plots")+
+#   theme_ipsum() +
+#   scale_fill_viridis(discrete = TRUE,
+#                      option = "D",
+#                      name = "",
+#                      begin = 0.5,
+#                      end = 0.8) +
+#   theme(legend.position = 'none')
+
+```
+
+
+### Tree and Shrub Species Diversity
+
+Trees and shrubs were identified at the species level in each 100-m2 subplot (n=4 per plot). 
+
+```{r TreeShrubDiversityCalc, include = FALSE}
+
+# Trees
+
+chep.tree <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_treespecies_Chepareria_clean.csv",
+                      na.strings = c("", "NA")) 
+
+
+loki.tree <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_treespecies_Lokiriama_clean.csv",
+                      na.strings = c("", "NA"))
+
+
+mata.tree <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_treespecies_Matany_Rupa_clean.csv",
+                      na.strings = c("", "NA")) %>%
+  filter(Site == "Matany")
+
+
+rupa.tree <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_treespecies_Matany_Rupa_clean.csv",
+                      na.strings = c("", "NA")) %>%
+  filter(Site == "Rupa")
+
+kala.tree <- read.csv ("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_treespecies_Kalama_clean.csv",
+                       na.strings = c("", "NA"))
+
+
+
+DT.tree <- bind_rows(chep.tree, loki.tree, mata.tree, rupa.tree) 
+
+DT.DR.tree <- bind_rows(chep.tree, loki.tree, mata.tree, rupa.tree, kala.tree) 
+
+
+
+length(unique(DT.tree$trspecies_scientific))
+
+length(unique(chep.tree$trspecies_scientific))
+length(unique(loki.tree$trspecies_scientific))
+length(unique(mata.tree$trspecies_scientific))
+length(unique(rupa.tree$trspecies_scientific))
+
+
+
+
+# Shrubs
+
+chep.shr <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_shrubspecies_Chepareria_clean.csv",
+                      na.strings = c("", "NA"))
+
+loki.shr <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_shrubspecies_Lokiriama_clean.csv",
+                      na.strings = c("", "NA")) 
+
+mata.shr<- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_shrubspecies_Matany_Rupa_clean.csv",
+                      na.strings = c("", "NA")) %>%
+  filter(Site == "Matany")
+
+
+rupa.shr <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_shrubspecies_Matany_Rupa_clean.csv",
+                      na.strings = c("", "NA")) %>%
+  filter(Site == "Rupa")
+
+kala.shr <- read.csv ("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_shrubspecies_Kalama_clean.csv",
+                       na.strings = c("", "NA"))
+
+DT.shr <- bind_rows(chep.shr, loki.shr, mata.shr, rupa.shr)
+DT.DR.shr <- bind_rows(chep.shr, loki.shr, mata.shr, rupa.shr, kala.shr)
+
+
+
+length(unique(DT.shr$shsuplspecies_scientific))
+
+length(unique(chep.shr$shsuplspecies_scientific))
+length(unique(loki.shr$shsuplspecies_scientific))
+length(unique(mata.shr$shsuplspecies_scientific))
+length(unique(rupa.shr$shsuplspecies_scientific))
+
+
+
+
+# Tree species frequency - all sites
+
+DT.treeSp <- DT.tree %>%
+  mutate(trspecies_scientific = as.character(trspecies_scientific)) %>%
+  group_by(trspecies_scientific,
+           treefamily) %>%
+  filter(trspecies_scientific != "Na") %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq=count/sum(count))
+
+
+## Tree species frequency - Chepareria
+
+chep.treeSp <- chep.tree %>%
+  mutate(trspecies_scientific = as.character(trspecies_scientific)) %>%
+  group_by(trspecies_scientific,
+           treefamily) %>%
+  filter(trspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Chepareria")
+
+write.csv(chep.treeSp, "../Data/tree_sp_chep.csv")
+
+## Tree species frequency - Lokiriama
+
+loki.treeSp <- loki.tree %>%
+  mutate(trspecies_scientific = as.character(trspecies_scientific)) %>%
+  group_by(trspecies_scientific,
+           treefamily) %>%
+  filter(trspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Lokiriama")
+
+write.csv(loki.treeSp, "../Data/tree_sp_loki.csv")
+
+## Tree species frequency - Matany
+
+mata.treeSp <- mata.tree %>%
+  mutate(trspecies_scientific = as.character(trspecies_scientific)) %>%
+  group_by(trspecies_scientific,
+           treefamily) %>%
+  filter(trspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Matany")
+
+write.csv(mata.treeSp, "../Data/tree_sp_mata.csv")
+
+
+## Tree species frequency - Rupa
+
+rupa.treeSp <- rupa.tree %>%
+  mutate(trspecies_scientific = as.character(trspecies_scientific)) %>%
+  group_by(trspecies_scientific,
+           treefamily) %>%
+  filter(trspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Rupa")
+
+write.csv(rupa.treeSp, "../Data/tree_sp_rupa.csv")
+
+
+
+
+DT.treeSpSite <- bind_rows(chep.treeSp, loki.treeSp, mata.treeSp, rupa.treeSp) 
+write_csv(DT.treeSpSite, "../Data/tree_sp_DT.csv")
+
+
+
+# Shrub species frequency - all sites
+
+DT.shSp <- DT.shr %>%
+  mutate(shsuplspecies_scientific = as.character(shsuplspecies_scientific)) %>%
+  group_by(shsuplspecies_scientific,
+           shfamily) %>%
+  filter(shsuplspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count))
+
+
+## Shrub species frequency - Chepareria
+
+chep.shSp <- chep.shr %>%
+  mutate(shsuplspecies_scientific = as.character(shsuplspecies_scientific)) %>%
+  group_by(shsuplspecies_scientific,
+           shfamily) %>%
+  filter(shsuplspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Chepareria")
+
+## Shrub species frequency - Lokiriama
+
+loki.shSp <- loki.shr %>%
+  mutate(shsuplspecies_scientific = as.character(shsuplspecies_scientific)) %>%
+  group_by(shsuplspecies_scientific,
+           shfamily) %>%
+  filter(shsuplspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Lokiriama")
+
+## Shrub species frequency - Matany
+
+mata.shSp <- mata.shr %>%
+  mutate(shsuplspecies_scientific = as.character(shsuplspecies_scientific)) %>%
+  group_by(shsuplspecies_scientific,
+           shfamily) %>%
+  filter(shsuplspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Matany")
+
+
+## Shrub species frequency - Rupa
+
+rupa.shSp <- rupa.shr %>%
+  mutate(shsuplspecies_scientific = as.character(shsuplspecies_scientific)) %>%
+  group_by(shsuplspecies_scientific,
+           shfamily) %>%
+  filter(shsuplspecies_scientific != "Na") %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Rupa")
+
+
+
+DT.shSpSite <- bind_rows(chep.shSp, loki.shSp, mata.shSp, rupa.shSp) 
+
+write_csv(DT.shSpSite, "../Data/shrub_sp_DT.csv")
+
+DT.treeSpSiteSum <- DT.treeSpSite %>%
+  dplyr::select(-count) %>%
+  group_by(Site) %>%
+  summarise(n_tree_species = n())
+
+DT.shSpSiteSum <- DT.shSpSite %>%
+  dplyr::select(-count) %>%
+  group_by(Site) %>%
+  summarise(n_shrub_species = n())
+
+DT.woodySpSum <- full_join(DT.treeSpSiteSum,
+                           DT.shSpSiteSum,
+                           by = "Site")
+
+```
+
+```{r TreeShrubDiversityTable}
+
+knitr::kable(DT.woodySpSum,
+             digits = 2,
+             caption = "Table 4. Number of tree and shrub species in each site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+```
+
+
+```{r TreeDiversityPlots,  fig.cap="Figure 6. Tree species frequency by site. Different colors indicate different families", fig.height = 12, fig.width = 14}
+
+DT.treeSpSite %>%
+  ggplot(aes(
+    x = reorder(trspecies_scientific,-freq),
+    y = freq,
+    fill = treefamily)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "B",
+                     name = "") +
+  ggtitle("Tree species frequency per site") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 10)) +
+  guides(fill = guide_legend(ncol = 1))
+
+
+
+ggsave(file = "../Images/TreeSpecies_all.jpeg",
+       width = 50,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+
+```{r TreeDiversityPlotsChep,  fig.cap="Figure 7. Tree species frequency in Chepareria. Different colors indicate different families", fig.height = 9, fig.width = 14}
+
+DT.treeSpSite %>%
+  filter(Site == "Chepareria") %>%
+  ggplot(aes(
+    x = reorder(trspecies_scientific,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "B",
+                     name = "") +
+  ggtitle("Chepareria") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+ggsave(file = "../Images/TreeSpecies_Chepareria.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r TreeDiversityPlotsLoki,  fig.cap="Figure 8. Tree species frequency in Lokiriama. Different colors indicate different families", fig.height = 9, fig.width = 14}
+
+DT.treeSpSite %>%
+  filter(Site == "Lokiriama") %>%
+  ggplot(aes(
+    x = reorder(trspecies_scientific,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "B",
+                     name = "") +
+  ggtitle("Lokiriama") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+
+ggsave(file = "../Images/TreeSpecies_Lokiriama.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r TreeDiversityPlotsRupa,  fig.cap="Figure 9. Tree species frequency in Rupa. Different colors indicate different families", fig.height = 9, fig.width = 14}
+
+DT.treeSpSite %>%
+  filter(Site == "Rupa") %>%
+  ggplot(aes(
+    x = reorder(trspecies_scientific,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "B",
+                     name = "") +
+  ggtitle("Rupa") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+
+ggsave(file = "../Images/TreeSpecies_Rupa.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r TreeDiversityPlotsMatany,  fig.cap="Figure 10. Tree species frequency in Matany. Different colors indicate different families", fig.height = 9, fig.width = 14}
+
+DT.treeSpSite %>%
+  filter(Site == "Matany") %>%
+  ggplot(aes(
+    x = reorder(trspecies_scientific, freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "B",
+                     name = "") +
+  ggtitle("Matany") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+
+ggsave(file = "../Images/TreeSpecies_Matany.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+
+```{r ShrubDiversityPlots, fig.cap="Figure 12. Shrub species frequency by site. Different colors indicate different families", fig.height = 12, fig.width = 14}
+
+DT.shSpSite %>%
+  ggplot(aes(
+    x = reorder(shsuplspecies_scientific,-freq),
+    y = freq,
+    fill = shfamily)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "B",
+                     name = "") +
+  ggtitle("Shrub species frequency") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8),
+        legend.position="none") +
+  guides(fill = guide_legend(ncol = 1)) #+
+  #ggsave("TreeSpeciesDT.png", width=25, height = 15, units = "cm")
+
+ggsave(file = "../Images/ShrubSpecies_all.jpeg",
+       width = 30,
+       height = 16,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r TreeDiversityCult, fig.cap="Figure 13. Tree species frequency in cultivated and non-cultivated plots (Chepareria and Matany sites)", fig.height = 9, fig.width = 14}
+
+chep.mata.tree.ldsf <- left_join(
+  DT.tree %>%
+    filter (Site == "Chepareria"| Site == "Matany") %>%
+    mutate(Site = as.factor(Site)),
+  ldsf.DT %>%
+    filter (Site == "Chepareria"| Site == "Matany") %>%
+    dplyr::select(c(PlotCultMgd, Site, Cluster, Plot)),
+  by = c("Site", "Cluster", "Plot"))
+
+
+chep.mata.tree.count <- chep.mata.tree.ldsf %>%
+  group_by(Site, PlotCultMgd, trspecies_scientific) %>%
+  filter(trspecies_scientific != "Na") %>%
+  summarise(count=n()) %>%
+  mutate(freq=count/sum(count))
+
+
+chep.mata.tree.total<- chep.mata.tree.count %>% 
+  group_by(Site, PlotCultMgd) %>%
+  mutate(unique_types = n_distinct(trspecies_scientific))
+
+
+
+ggplot(chep.mata.tree.count) +
+  geom_bar(aes(
+    x = reorder(trspecies_scientific,-freq),
+    y = freq,
+    fill = Site),
+    stat = "identity",
+    #fill = "#647007",
+    alpha = 0.8) +
+  theme_ipsum () +
+  theme(axis.text.x = element_text(angle = 90,
+                                   hjust = 1,
+                                   vjust = 0.5,
+                                   #size = 11
+                                   ),
+        #axis.title = element_text(size = 14,face = "bold"),
+        plot.title = element_text(size = 14),
+        #strip.text = element_text(size = 12)
+        )+
+  xlab("") +
+  ylab("Frequency")+
+  #ggtitle("Tree Species in Cultivated and Non-cultivated Plots. Chepareria")+
+  facet_wrap(~PlotCultMgd,
+             ncol = 1)
+
+ggsave(file = "../Images/TreeSpeciesCultNonCult.jpeg",
+       width = 30,
+       height = 16,
+       units = "cm",
+       dpi = 600)
+
+```
+
+### Plot-level Tree Species Diversity 
+
+```{r LeafletPlotLevelSpeciesDiversity, fig.cap="Map 2. Number of tree species per plot"}
+
+DT.tree.plot <- DT.tree %>%
+  group_by(Site, Cluster, Plot) %>%
+  summarise(n_tree_sp_plot = length(unique(trspecies_scientific))) 
+
+
+DT.tree.plot2 <- left_join(
+  ldsf.DT %>%
+    dplyr::select(c(Site, Cluster, Plot, Longitude, Latitude, PlotCultMgd)),
+  DT.tree.plot %>%
+    dplyr::select(c(Site, Cluster, Plot, n_tree_sp_plot)),
+    mutate(Site = as.factor(Site)),
+  by = c("Site", "Cluster", "Plot")) %>%
+  mutate_at("n_tree_sp_plot", ~replace(., is.na(.),0))
+
+
+pal_treespn = colorFactor(palette ="plasma", DT.tree.plot2$n_tree_sp_plot, reverse = TRUE)
+
+leaflet() %>%
+  addProviderTiles(provider="Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  addCircleMarkers(
+    data = DT.tree.plot2 %>%
+      filter(PlotCultMgd == "yes"),
+    group = "Cultivated",
+    lng = ~Longitude,
+    lat = ~ Latitude,
+    radius = ~ n_tree_sp_plot,
+    stroke = TRUE,
+    color = ~ pal_treespn(n_tree_sp_plot),
+    label = ~ paste0(Site, Cluster, ".", Plot)
+    ) %>%
+  addCircleMarkers(
+    data = DT.tree.plot2 %>%
+      filter(PlotCultMgd == "no"),
+    group = "Not cultivated",
+    lng = ~Longitude,
+    lat = ~ Latitude,
+    radius = ~ n_tree_sp_plot,
+    stroke = TRUE,
+    color = ~ pal_treespn(n_tree_sp_plot),
+    label = ~ paste0(Site, Cluster, ".", Plot)
+    ) %>%
+  addLayersControl(baseGroups = c("General","Topo","Satelite"),
+                   overlayGroups = c("Cultivated", "Not cultivated")) %>%
+  addLegend(pal = pal_treespn,
+            values = DT.tree.plot2$n_tree_sp_plot)
+
+
+```
+
+## Herbaceous vegetation
+
+
+### Herbaceous cover
+
+Each LDSF sub-plot, herbaceous cover is assessed and scored using a modified Braun-Blanquet approach into either “absent”, “<4%”, “4-15%”, “15-40%”, “40-65%”, or “>65%” cover.
+
+```{r HerbcoverPerSite, fig.cap="Figure 14. Herbaceous cover rate by Site", out.width="100%"}
+
+#glimpse(ldsf.DT)
+
+melt.DT.herb <-melt(ldsf.DT,
+                   id.vars = c("Site", "Cluster", "Plot"),
+                   measure.vars = c("HerbCovRate1","HerbCovRate2","HerbCovRate3", "HerbCovRate4")) %>%
+  mutate(rating = ifelse(value==0, "absent",
+                         ifelse(value==1, "<4",
+                                ifelse(value==2, "4-15",
+                                       ifelse(value==3, "15-40",
+                                              ifelse(value==4, "40-65",
+                                                     ">65"))))))
+
+
+DT.herb.site <- melt.DT.herb %>% group_by(Site, rating) %>%
+  summarise(count = n(),
+            value = first(value))%>%
+  mutate(freq = (count / sum(count))) %>%
+  ungroup()
+
+
+DT.herb.site %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)")+
+  ggtitle("Herbaceous Cover Rating (%)")+
+  theme_gray(base_size=10) +
+  facet_wrap(~Site) 
+
+
+ggsave(file = "../Images/HerbaceousCoverRatingSite.jpeg",
+       width = 25,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+
+  
+```
+
+
+```{r HerbcoverPerCluster, include = FALSE}
+
+
+DT.herb.site.cluster <- melt.DT.herb %>%
+  group_by(Site, Cluster, rating) %>%
+  summarise(count = n(),
+            value = first(value))%>%
+  mutate(freq = (count / sum(count))) %>%
+  ungroup()
+
+# Herbaceous cover rating per cluster in Chepareria site...
+
+DT.herb.site.cluster %>%
+  filter (Site == "Chepareria") %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)")+
+  ggtitle("Herbaceous Cover Rating (%) in the 10 Plots per Cluster, Chepareria site")+
+  theme_gray(base_size=10) +
+  facet_wrap(~Cluster) 
+
+
+ggsave(file = "../Images/HerbCoverRatingChepa.jpeg",
+       #width = 20,
+       #height = 15,
+       #units = "cm",
+       dpi = 600)
+
+
+
+
+  
+```
+
+
+
+### Grass Species Diversity
+
+In each plot that is classified as rangeland (i.e., not cropland), two perpendicular transects are established, one N-S and one E-W. Each transect has 15 sampling points 2 m apart.
+
+In Chepareria and Lokiriama sites, at each sampling point along the transect, the distance to either the closest perennial grass or the closest annual grass was recorded (< 200 cm), and the species recorded. obs! Each row (sampling point) has either the closes annual or the closest perennial, but not both.
+
+Later, the rangeland module was improved. In Matany and Rupa sites, the distance to the nearest perennial grass, annual grass, forb and woody species are recorded (< 200 cm). When the closest plant is >200 cm, a 200 is set in the distance and N in the species. 
+
+Both true grasses (poaceae) and graminods in general (also cyperaceae-sedges) were included in the inventory. 
+
+```{r ReadRangelandData, include = FALSE}
+
+chep.range <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_rangelands_Lokiriama_Chapareria_clean.csv",
+                      na.strings = c("", "NA"))%>%
+  filter (Site == "Chepareria")
+
+
+loki.range <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_rangelands_Lokiriama_Chapareria_clean.csv",
+                      na.strings = c("", "NA"))%>%
+  filter (Site == "Lokiriama")
+
+
+mata.range <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_rangelands_Matany_Rupa_clean.csv",
+                      na.strings = c("", "NA"))%>%
+  filter (Site == "Matany")
+
+
+rupa.range <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_rangelands_Matany_Rupa_clean.csv",
+                      na.strings = c("", "NA"))%>%
+  filter (Site == "Rupa")
+
+
+kala.range <- read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Field data/table_rangelands_Kalama_clean.csv",
+                      na.strings = c("", "NA"))
+
+
+glimpse(chep.range)
+glimpse(loki.range)
+glimpse(mata.range)
+glimpse(rupa.range)
+
+
+
+
+DT.range <- bind_rows(chep.range, loki.range, mata.range, rupa.range)
+DT.DR.range <- bind_rows(chep.range, loki.range, mata.range, rupa.range, kala.range) 
+
+#write_csv(DT.DR.range, "C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Dataverse/table_rangelands_DT_DR.csv")
+
+glimpse(DT.range)
+
+
+```
+
+```{r SummaryPlotsRangelandModule, include = FALSE}
+
+summary.rangeland.module <- DT.range %>%
+  group_by(Site,Cluster, Plot) %>%
+  summarize(n = n()) %>%
+  group_by(Site, Cluster) %>%
+  summarize( n = n())
+
+summary.rangeland.module
+
+
+```
+
+
+
+```{r GrassPerennialDiversityCalc, include = FALSE}
+
+# Rangeland data 
+
+## Number of unique perennial grasses (obs, this counts N as a different species, but later I remove N values)
+
+length(unique(DT.range$rl_nearest_grass_perennial_spp))
+
+length(unique(chep.range$rl_nearest_grass_perennial_spp))
+length(unique(loki.range$rl_nearest_grass_perennial_spp))
+length(unique(rupa.range$rl_nearest_grass_perennial_spp))
+length(unique(mata.range$rl_nearest_grass_perennial_spp))
+
+
+
+# Perennial grass species frequency - all sites
+
+DT.perennialSp <- DT.range %>%
+  mutate(rl_nearest_grass_perennial_spp = as.character(rl_nearest_grass_perennial_spp)) %>%
+  filter(rl_nearest_grass_perennial_spp != "N") %>%
+  group_by(rl_nearest_grass_perennial_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq=count/sum(count))
+
+
+## Perennial grass species frequency - Chepareria
+
+chep.perennialSp <- chep.range %>%
+  mutate(rl_nearest_grass_perennial_spp = as.character(rl_nearest_grass_perennial_spp)) %>%
+  filter(rl_nearest_grass_perennial_spp != "N") %>%
+  group_by(rl_nearest_grass_perennial_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Chepareria")
+
+
+## Perennial grass species frequency - Lokiriama
+
+loki.perennialSp <- loki.range %>%
+  mutate(rl_nearest_grass_perennial_spp = as.character(rl_nearest_grass_perennial_spp)) %>%
+  filter(rl_nearest_grass_perennial_spp != "N") %>%
+  group_by(rl_nearest_grass_perennial_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Lokiriama")
+
+
+## Perennial grass species frequency - Rupa
+
+rupa.perennialSp <- rupa.range %>%
+  mutate(rl_nearest_grass_perennial_spp = as.character(rl_nearest_grass_perennial_spp)) %>%
+  filter(rl_nearest_grass_perennial_spp != "N") %>%
+  group_by(rl_nearest_grass_perennial_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Rupa")
+
+## Perennial grass species frequency - Matany
+
+mata.perennialSp <- mata.range %>%
+  mutate(rl_nearest_grass_perennial_spp = as.character(rl_nearest_grass_perennial_spp)) %>%
+  filter(rl_nearest_grass_perennial_spp != "N") %>%
+  group_by(rl_nearest_grass_perennial_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Matany")
+
+
+
+DT.perennialSpSite <- bind_rows(chep.perennialSp, loki.perennialSp, mata.perennialSp, rupa.perennialSp) 
+
+
+
+DT.perennialSpSiteSum <- DT.perennialSpSite %>%
+  dplyr::select(c(-count, -freq)) %>%
+  group_by(Site) %>%
+  summarise(n_perennial_species = n())
+
+
+```
+
+
+```{r GrassAnnualDiversityCalc, include = FALSE}
+
+# Rangeland data 
+
+
+## Number of unique annual grasses
+
+length(unique(DT.range$rl_nearest_grass_annual_spp))
+
+length(unique(chep.range$rl_nearest_grass_annual_spp))
+length(unique(loki.range$rl_nearest_grass_annual_spp))
+length(unique(rupa.range$rl_nearest_grass_annual_spp))
+length(unique(mata.range$rl_nearest_grass_annual_spp))
+
+
+# Annual grass species frequency - all sites
+
+DT.annualSp <- DT.range %>%
+  mutate(rl_nearest_grass_annual_spp = as.character(rl_nearest_grass_annual_spp)) %>%
+  filter(rl_nearest_grass_annual_spp != "N") %>%
+  group_by(rl_nearest_grass_annual_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq=count/sum(count))
+
+
+## Annual grass species frequency - Chepareria
+
+chep.annualSp <- chep.range %>%
+  mutate(rl_nearest_grass_annual_spp = as.character(rl_nearest_grass_annual_spp)) %>%
+  filter(rl_nearest_grass_annual_spp != "N") %>%
+  group_by(rl_nearest_grass_annual_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Chepareria")
+
+
+## Annual grass species frequency - Lokiriama
+
+loki.annualSp <- loki.range %>%
+  mutate(rl_nearest_grass_annual_spp = as.character(rl_nearest_grass_annual_spp)) %>%
+  filter(rl_nearest_grass_annual_spp != "N") %>%
+  group_by(rl_nearest_grass_annual_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Lokiriama")
+
+
+## Annual grass species frequency - Rupa
+
+rupa.annualSp <- rupa.range %>%
+  mutate(rl_nearest_grass_annual_spp = as.character(rl_nearest_grass_annual_spp)) %>%
+  filter(rl_nearest_grass_annual_spp != "N") %>%
+  group_by(rl_nearest_grass_annual_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Rupa")
+
+## Annual grass species frequency - Matany
+
+mata.annualSp <- mata.range %>%
+  mutate(rl_nearest_grass_annual_spp = as.character(rl_nearest_grass_annual_spp)) %>%
+  filter(rl_nearest_grass_annual_spp != "N") %>%
+  group_by(rl_nearest_grass_annual_spp) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Matany")
+
+
+
+
+DT.annualSpSite <- bind_rows(chep.annualSp, loki.annualSp, mata.annualSp, rupa.annualSp) 
+
+
+
+DT.annualSpSiteSum <- DT.annualSpSite %>%
+  dplyr::select(c(-count, -freq)) %>%
+  group_by(Site) %>%
+  summarise(n_annual_species = n())
+
+
+DT.perennialSpSiteSum
+DT.annualSpSiteSum
+
+DT.grassSpSum <- full_join(DT.perennialSpSiteSum,
+                           DT.annualSpSiteSum,
+                           by = "Site")
+
+
+
+```
+
+```{r GrassDiversityTable}
+
+knitr::kable(DT.grassSpSum,
+             digits = 2,
+             caption = "Table 6. Number of grass species in each site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+```
+#### Perennial grasses
+
+```{r PerennialGrassDiversityPlots,  fig.cap="Figure 15. Perennial grass species frequency by site", fig.height = 9, fig.width = 14}
+
+DT.perennialSpSite %>%
+  ggplot(aes(
+    x = reorder(rl_nearest_grass_perennial_spp,-freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  ggtitle("Perennial grass species frequency per site") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 10)) +
+  guides(fill = guide_legend(ncol = 1))
+
+
+
+ggsave(file = "../Images/PerennialGrassSpecies_all.jpeg",
+       width = 50,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+
+```{r PerennialGrassDiversityPlotsChep,  fig.cap="Figure 16. Perennial grass species frequency in Chepareria site", fig.height = 9, fig.width = 14}
+
+DT.perennialSpSite %>%
+  filter(Site == "Chepareria") %>%
+  ggplot(aes(
+    x = reorder(rl_nearest_grass_perennial_spp,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  ggtitle("Perennial grass species diversity, Chepareria") +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+ggsave(file = "../Images/PerennialGrassSpecies_Chepareria.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r PerennialGrassDiversityPlotsLoki,  fig.cap="Figure 17. Perennial grass species frequency in Lokiriama site", fig.height = 9, fig.width = 14}
+
+DT.perennialSpSite %>%
+  filter(Site == "Lokiriama") %>%
+  ggplot(aes(
+    x = reorder(rl_nearest_grass_perennial_spp,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  ggtitle("Perennial grass species diversity, Lokiriama") +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+ggsave(file = "../Images/PerennialGrassSpecies_Lokiriama.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r PerennialGrassDiversityPlotsRupa,  fig.cap="Figure 18. Perennial grass species frequency in Rupa site", fig.height = 9, fig.width = 14}
+
+DT.perennialSpSite %>%
+  filter(Site == "Rupa") %>%
+  ggplot(aes(
+    x = reorder(rl_nearest_grass_perennial_spp,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  ggtitle("Perennial grass species diversity, Rupa") +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+ggsave(file = "../Images/PerennialGrassSpecies_Rupa.jpeg",
+       width =20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r PerennialGrassDiversityPlotsMatany,  fig.cap="Figure 19. Perennial grass species frequency in Matany site", fig.height = 9, fig.width = 14}
+
+DT.perennialSpSite %>%
+  filter(Site == "Matany") %>%
+  ggplot(aes(
+    x = reorder(rl_nearest_grass_perennial_spp,freq),
+    y = freq)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  theme_ipsum() +
+  #facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 8)) +
+  ggtitle("Perennial grass species diversity, Matany") +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+ggsave(file = "../Images/PerennialGrassSpecies_Matany.jpeg",
+       width = 20,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+```
+
+
+#### Plot-level Perennial Grass Species Diversity 
+
+```{r LeafletPlotLevelGrassPerenSpeciesDiversity, fig.cap="Map 3. Number of perennial grass species per plot"}
+
+DT.peren.grass.plot <- DT.range %>%
+  group_by(Site, Cluster, Plot) %>%
+  summarise(n_pern_sp_plot = length(unique(rl_nearest_grass_perennial_spp))) 
+
+
+DT.peren.grass.plot2 <- left_join(
+  ldsf.DT %>%
+    dplyr::select(c(Site, Cluster, Plot, Longitude, Latitude)),
+  DT.peren.grass.plot %>%
+    dplyr::select(c(Site, Cluster, Plot, n_pern_sp_plot)),
+    mutate(Site = as.factor(Site)),
+  by = c("Site", "Cluster", "Plot")) 
+
+
+pal_grassspn = colorFactor(palette ="plasma", DT.peren.grass.plot2$n_pern_sp_plot, reverse = TRUE)
+
+leaflet() %>%
+  addProviderTiles(provider="Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  addCircleMarkers(
+    data = DT.peren.grass.plot2,
+    lng = ~Longitude,
+    lat = ~ Latitude,
+    radius = ~ n_pern_sp_plot,
+    stroke = TRUE,
+    color = ~ pal_grassspn(n_pern_sp_plot),
+    label = ~ paste0(Site, Cluster, ".", Plot)
+    ) %>%
+  addLayersControl(baseGroups = c("General","Topo","Satelite")) %>%
+  addLegend(pal = pal_grassspn,
+            values = DT.peren.grass.plot2$n_pern_sp_plot)
+
+
+```
+#### Annual and perennial grasses
+
+```{r MeltRangelandData, include = FALSE}
+
+# I want to have a column with the species (either annual or perennial), and another column with the distance. I will use the function melt in data.table
+
+DT.range.dt <- setDT(DT.range) # first I convert it to a data.table object
+
+str(DT.range.dt)
+
+colA = c("rl_nearest_grass_perennial_spp", "rl_nearest_grass_annual_spp", "rl_nearest_forb_spp", "rl_nearest_woody_spp")
+colB = c("rl_dist_grass_perennial", "rl_dist_grass_annual", "rl_dist_forb", "rl_dist_woody_plant")
+  
+DT.range.long <- data.table::melt (DT.range, measure = list(colA, colB), value.name = c("species", "distance"), variable.name = "veg.type")
+
+levels(DT.range.long$veg.type)
+
+DT.range.long$veg.type <- recode_factor (DT.range.long$veg.type, "1" = 'perennial', "2" = 'annual', "3" = 'forb', "4" = 'woody')
+ 
+
+glimpse(DT.range.long)
+
+DT.range.long <- DT.range.long %>%
+  filter(!is.na(species)) %>%
+  filter(species != "N") #I remove all observations with NA or N values
+
+glimpse(DT.range.long)
+
+
+```
+
+
+```{r GrassDiversityCalc, include = FALSE}
+
+
+# Grass species frequency - all sites
+
+DT.range.grassSp <- DT.range.long %>%
+  filter(veg.type == "perennial" | veg.type == "annual") %>%
+  mutate(species = as.character(species)) %>%
+  group_by(species, veg.type) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq=count/sum(count))
+         
+         
+## Grass species frequency - Chepareria
+
+chep.range.grassSp <- DT.range.long %>%
+  filter(veg.type == "perennial" | veg.type == "annual") %>%
+  filter (Site == "Chepareria") %>%
+  mutate(species = as.character(species)) %>%
+  group_by(species, veg.type) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Chepareria")
+
+
+## Grass species frequency - Lokiriama
+
+loki.range.grassSp <- DT.range.long %>%
+  filter(veg.type == "perennial" | veg.type == "annual") %>%
+  filter (Site == "Lokiriama") %>%
+  mutate(species = as.character(species)) %>%
+  group_by(species, veg.type) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Lokiriama")
+
+
+## Grass species frequency - Matany
+
+mata.range.grassSp <- DT.range.long %>%
+  filter(veg.type == "perennial" | veg.type == "annual") %>%
+  filter (Site == "Matany") %>%
+  mutate(species = as.character(species)) %>%
+  group_by(species, veg.type) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Matany")
+
+
+## Grass species frequency - Rupa
+
+rupa.range.grassSp <- DT.range.long %>%
+  filter(veg.type == "perennial" | veg.type == "annual") %>%
+  filter (Site == "Rupa") %>%
+  mutate(species = as.character(species)) %>%
+  group_by(species, veg.type) %>%
+  summarise(count=n()) %>%
+  ungroup() %>%
+  mutate(freq = count/sum(count),
+         Site = "Rupa")
+
+
+
+
+DT.grassSpSite <- bind_rows(chep.range.grassSp, loki.range.grassSp, mata.range.grassSp, rupa.range.grassSp)
+
+
+```
+
+
+```{r GrassDiversityPlots,  fig.cap="Figure 21. Grass species frequency by site", fig.height = 9, fig.width = 14}
+
+DT.grassSpSite %>%
+  ggplot(aes(
+    x = reorder(species,-freq),
+    y = freq,
+    fill = veg.type)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "D",
+                     name = "",
+                     end = 0.75) +
+  ggtitle("Grass species frequency") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 10)) +
+  guides(fill = guide_legend(ncol = 1))
+
+
+
+ggsave(file = "../Images/GrassSpecies_all.jpeg",
+       width = 50,
+       height = 30,
+       units = "cm",
+       dpi = 600)
+
+
+
+```
+
+
+```{r GrassDiversityPlotsChep,  fig.cap="Figure 22. Grass species frequency, Chepareria", fig.height = 9, fig.width = 14}
+
+chep.range.grassSp %>%
+  ggplot(aes(
+    x = reorder(species,freq),
+    y = freq,
+    fill = veg.type)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "D",
+                     name = "",
+                     end = 0.75) +
+  ggtitle("Grass species frequency, Chepareria") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 10)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+
+ggsave(file = "../Images/GrassSpecies_Chepareria.jpeg",
+       width = 40,
+       height = 25,
+       units = "cm",
+       dpi = 600)
+
+
+
+```
+
+
+```{r GrassDiversityPlotsMata,  fig.cap="Figure 24. Grass species frequency, Matany", fig.height = 9, fig.width = 14}
+
+mata.range.grassSp %>%
+  ggplot(aes(
+    x = reorder(species,freq),
+    y = freq,
+    fill = veg.type)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "D",
+                     name = "",
+                     end = 0.75) +
+  ggtitle("Grass species frequency, Matany") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 10)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+
+ggsave(file = "../Images/GrassSpecies_Matany.jpeg",
+       width = 40,
+       height = 25,
+       units = "cm",
+       dpi = 600)
+
+
+
+```
+
+```{r GrassDiversityPlotsRupa,  fig.cap="Figure 25. Grass species frequency, Rupa", fig.height = 9, fig.width = 14}
+
+rupa.range.grassSp %>%
+  ggplot(aes(
+    x = reorder(species,freq),
+    y = freq,
+    fill = veg.type)) +
+  geom_bar(stat = "identity",
+           alpha = 0.8) +
+  #coord_flip() +
+  #xlab("Species Name") +
+  xlab("")+
+  ylab("Frequency") +
+  scale_fill_viridis(discrete = TRUE,
+                     option = "D",
+                     name = "",
+                     end = 0.75) +
+  ggtitle("Grass species frequency, Rupa") +
+  theme_ipsum() +
+  facet_grid (rows = vars(Site))+
+  theme(axis.text.x = element_text(angle = 90, 
+                                   vjust = 0.5,
+                                   hjust = 1),
+        legend.key.size = unit(0.3, 'cm'),
+        legend.text = element_text( size = 10)) +
+  guides(fill = guide_legend(ncol = 1)) +
+  coord_flip()
+
+
+
+ggsave(file = "../Images/GrassSpecies_Rupa.jpeg",
+       width = 40,
+       height = 25,
+       units = "cm",
+       dpi = 600)
+
+
+
+```
+
+
+## Soil erosion
+
+Erosion is the most widespread form of land degradation. In each sub-plot (n=4) per plot, signs of erosion are recorded and classified into None/Sheet/Rill/Gully.
+
+Based on this, a visible erosion score (VisErosion) is calculated by adding the subplot visible erosion variable (0 - no erosion, 1 erosion) in all 4 subplots. A severe erosion index (SEVEREERO) is also calculated (0 - no severe erosion, 1 severe erosion), with 1 meaning that VisErosion >= 3. 
+
+Figures 27 and 28 shows the percentage of plots within each cluster classified as having severe erosion.
+
+```{r ErosionCalculations}
+
+#glimpse(ldsf.DT)
+
+# Erosion
+
+ldsf.DT <- ldsf.DT %>%
+  mutate(
+    VisErosion1 = recode(Erosion1,
+      "none" = 0,
+      .default = 1),
+    VisErosion2 = recode(Erosion2,
+      "none" = 0,
+      .default = 1),
+    VisErosion3 = recode(Erosion3,
+      "none" = 0,
+      .default = 1),
+    VisErosion4 = recode(Erosion4,
+      "none" = 0,
+      .default = 1)) %>%
+  mutate(
+    VisErosion = VisErosion1 + VisErosion2 + VisErosion3 + VisErosion4) %>%
+  mutate(
+    SEVEREERO = ifelse(VisErosion >= 3, 1, 0))
+
+
+
+eros.preval.cluster <- ldsf.DT %>%
+  group_by(Site, Cluster, SEVEREERO, .drop = FALSE) %>% 
+  summarise(count = n()) %>%
+  mutate(freq = count / sum(count)) %>%
+  ungroup()
+
+
+eros.preval.cluster <- eros.preval.cluster %>%
+  mutate (freq_seve = 
+            ifelse (SEVEREERO ==1, freq, 1-freq)) %>%
+  group_by (Site, Cluster) %>%
+  summarise(freq_severeero = mean (freq_seve)) %>%
+  ungroup()
+
+
+```
+
+
+```{r ErosionGraphsViolin, fig.cap="Figure 27. Erosion prevalence across the LDSF sites. Percentage of plots per cluster with severe erosion", out.width="100%"}
+
+eros.preval.cluster %>%
+  ggplot() +
+
+  geom_boxplot(aes(
+    x = Site,
+    y = freq_severeero * 100
+    ),
+    width = 0.1,
+    fill = "#b18313") +
+  geom_jitter(
+    aes(x = Site,
+        y = freq_severeero * 100),
+    col = "#473e2c",
+    alpha = 0.4,
+    width = 0.1,
+    height = 1,
+    shape = 19
+  )+
+  coord_flip () +
+  ylab ("Prevalence of severe erosion (%)") +
+  ylim(0,105) +
+  #ggtitle ("Erosion prevalence in the LDSF sites")+
+  theme_ipsum() 
+
+
+ggsave(file = "../Images/ErosionPrevalence.jpeg",
+       #width = 20,
+       #height = 15,
+       #units = "cm",
+       dpi = 600)
+
+
+```
+
+
+```{r ErosionGraphsBar, fig.cap="Figure 28. Percentage of plots with severe erosion per cluster", out.width="100%", fig.height = 9}
+
+eros.preval.cluster %>%
+  ggplot()+
+  geom_bar(aes(
+    x = factor(Cluster),
+    y = freq_severeero * 100),
+    stat = "identity",
+    fill = "#b18313",
+    alpha = 0.9) +
+  #ggtitle("Number of Plots with Severe Erosion per Cluster")+
+  theme_ipsum()+
+  xlab("Cluster")+
+  ylab("Percentage of plots")+
+  facet_wrap(~Site, ncol=1)
+
+
+ggsave(file = "../Images/ErosionPrevalence2.jpeg",
+       width = 20,
+       height = 20,
+       units = "cm",
+       dpi = 600)
+
+
+
+```
+
+```{r LeafletPlotVisErosion, fig.cap="Map 4. Visible erosion score in each plot"}
+
+# Filter sites with A.reficiens to add as a layer in the map
+# DT.tree.Ac.ref <- DT.tree %>%
+#   mutate (A.reficiens = ifelse (trspecies_scientific == "Acacia reficiens", 1, 0))
+# 
+# test <- DT.tree %>%
+#   dplyr::filter(str_detect(trspecies_scientific, "reficiens")) 
+#try trimws function!!
+
+ 
+pal_ero <- colorNumeric(palette = "YlOrBr", domain = c(0:4), reverse=TRUE)
+
+leaflet() %>%
+  addProviderTiles(provider="Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  addCircleMarkers(
+    data = ldsf.DT  %>%
+      filter(VisErosion == 0),
+    group = "No visible erosion",
+    lng = ~Longitude,
+    lat = ~ Latitude,
+    radius = 6,
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    color = ~ pal_ero(VisErosion),
+    label = ~ paste0(Site, Cluster, ".", Plot)
+    ) %>%
+  addCircleMarkers(
+    data = ldsf.DT %>%
+      filter(VisErosion != 0),
+    group = "Visible erosion",
+    lng = ~Longitude,
+    lat = ~ Latitude,
+    radius = 6,
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    color = ~ pal_ero(VisErosion),
+    label = ~ paste0(Site, Cluster, ".", Plot)
+    ) %>%
+  addLayersControl(baseGroups = c("Satelite","General","Topo"),
+                   overlayGroups = c("Visible erosion", "No visible erosion")) %>%
+  addLegend(pal = pal_ero,
+            values = c(0:4))
+
+```
+
+
+## Infiltration Capacity
+
+Infiltration capacity was measured at three plots per cluster in each site. Figure 7 shows the variation in infiltration rates within and between the sites.
+
+The infiltration rate is defined as the volume flux of water flowing into the profile per unit of soil surface area. For the special condition in which rainfall rate (or the rate in which water is made available at the soil surface) exceeds the ability of the soil to absorb water, i.e. under ponding, infiltration proceeds at a maximal rate, which is known as soil infiltration capacity or soil infiltrability.
+
+Therefore, soil infiltrability can be measured using soil controlled infiltration tests such as ring infiltrometers. 
+
+```{r InfiltrationBoxplotViolin, fig.cap="Figure 29. Field-saturated hydraulic conductivity across the LDSF sites", out.width="100%"}
+
+inf.plot.DT <- as_tibble(read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Infiltration data/DT_Kfs_PlotEstimates.csv",
+                       stringsAsFactors = TRUE)) %>%
+  filter (Site != "Kalama")
+
+inf.plot.DT %>%
+  ggplot() +
+  geom_violin(
+    aes(x = Site,
+        y = Kfs),
+    fill = "#aebad0",
+    color = "#473e2c",
+    alpha = 0.9,
+    width = 1.5) +
+  geom_boxplot(aes(
+    x = Site,
+    y = Kfs,
+    ),
+    width = 0.1,
+    fill = "#e7e5d8") +
+  geom_jitter(
+    aes(x = Site,
+        y = Kfs),
+    col = "#473e2c",
+    alpha = 0.3,
+    width = 0.1,
+    height = 1,
+    shape = 19
+  )+
+  coord_flip () +
+  ylab(expression(paste("Kfs (mm h"^"-1", ")"))) +
+  #ylim(0,105) +
+  #ggtitle (Topsoil field-saturated hydraulic conductivity")+
+  theme_ipsum() 
+
+
+ggsave(file = "../Images/InfiltrationCapacity.jpeg",
+       width = 20,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+```
+## Soil properties
+
+```{r loadsoildata, warning=FALSE, include=FALSE}
+
+#soil data mir predicted
+
+soil.pred.DT <-read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Soil data/ldsf_mirpred_soilvars_Dec2022.csv",
+                        stringsAsFactors = TRUE) %>%
+  mutate (ldsfID = as.character(ldsfID)) %>%
+  filter(Site != "Kalama") %>%
+  filter(Depthcode != "") %>%
+  filter(Cluster != 17) # Trec els clusters 17 perque son les dades dels LCs
+
+ldsf.DT <- ldsf.DT %>%
+  mutate (ldsfID = as.character(ldsfID))
+
+glimpse(soil.pred.DT)
+glimpse(ldsf.DT)
+
+
+#combine mir + ldsf
+
+ldsf.soil.pred.DT<- dplyr::left_join(soil.pred.DT, ldsf.DT, by = "ldsfID" )
+
+setdiff(ldsf.DT$ldsfID,soil.pred.DT$ldsfID) # Falten 2 mostres 
+
+setdiff(soil.pred.DT$ldsfID, ldsf.DT$ldsfID) # Hi ma més mostres analitzades (mirar que no hi hagi un misslabelling)
+```
+
+
+```{r SoilSummary}
+
+soil.table<- soil.pred.DT %>%
+  group_by(Site, Depthcode) %>%
+  summarise(count = n(),
+            mean.SOC=mean(predSOC),
+            sd.SOC=sd(predSOC),
+            mean.TN = mean(predTN),
+            sd.TN = sd(predTN),
+            mean.pH=mean(predpH),
+            sd.pH=sd(predpH),
+            mean.Sand=mean(predSand),
+            sd.Sand=sd(predSand),
+            mean.Clay=mean(predClay),
+            sd.Clay=sd(predClay),
+            mean.ExBas=mean(predExBas),
+            sd.ExBas=sd(predExBas)) %>%
+  arrange(desc(Depthcode))
+
+knitr::kable(soil.table,digits=2,caption="Soil Properties for DT sites" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+
+```
+### SOC
+
+```{r}
+
+ggplot(soil.pred.DT)+ 
+  geom_boxplot(aes(
+    y=predSOC,
+    x=Depthcode,
+    fill=Depthcode), 
+    show.legend=FALSE) +
+  coord_flip()+
+  facet_wrap(~Site, ncol=1)+
+  scale_fill_manual(values = c("#C4B68F", "#87604C")) +
+  ylab(expression(paste('SOC (g ',kg^{-1},')'))) +
+  xlab("")+
+  geom_hline(yintercept = 20,lty=2) +
+  theme_ipsum() 
+
+ggsave(file = "../Images/SOC_DT.jpeg",
+       width = 20,
+       height = 20,
+       units = "cm",
+       dpi = 600)
+
+
+ggplot(soil.pred.DT)+ 
+  geom_density_ridges(aes(
+    x=predSOC,
+    y=Depthcode,
+    fill=Depthcode), 
+    show.legend=FALSE) +
+  facet_wrap(~Site, ncol=1)+
+  scale_fill_manual(values = c("#C4B68F", "#87604C")) +
+  xlab(expression(paste('SOC (g ',kg^{-1},')'))) +
+  ylab("")+
+  theme_ipsum() 
+
+
+```
+
+### Sand content
+
+```{r}
+
+ggplot(soil.pred.DT)+ 
+  geom_boxplot(aes(
+    y=predSand,
+    x=fct_reorder(Site, -predSand)),
+    fill = "#E88F2B",
+    show.legend=FALSE) +
+  ylab("Sand content (%)") +
+  xlab("")+
+  theme_ipsum() 
+
+ggsave(file = "../Images/SandContent_DT.jpeg",
+       width = 15,
+       height = 20,
+       units = "cm",
+       dpi = 600)
+
+
+ggplot(soil.pred.DT)+ 
+  geom_point(aes(
+    x = predSand,
+    y = predSOC,
+    fill = Site
+  ),
+  shape = 21,
+  size = 2.5,
+  alpha = 0.8)+
+  scale_fill_manual(values = c("#BE6A1C", "#637007", "#AEBAD0", "#B18313"))+
+  ylab(expression(paste('SOC (g ',kg^{-1},')')))+
+  xlab("Sand content (%)")+
+  theme_ipsum() 
+
+ggsave(file = "../Images/SandContentSOC_DT.jpeg",
+       width = 20,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+```
+
+### pH
+
+```{r}
+
+ggplot(soil.pred.DT,
+       aes(x = predpH,
+           y= Site)) + 
+  geom_density_ridges(show.legend = FALSE,
+                      fill = "#929F8E",
+                      jittered_points = TRUE,
+                      position = position_points_jitter(width = 0.05, height = 0),
+                      point_shape = '|', 
+                      point_size = 2, 
+                      point_alpha = 1, 
+                      alpha = 0.8)+
+  xlab("pH") +
+  theme_ipsum() 
+
+ggsave(file = "../Images/pH_DT.jpeg",
+       width = 20,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+ggplot(soil.pred.DT,
+       aes(x = predExBas,
+           y= Site)) + 
+  geom_density_ridges(show.legend = FALSE,
+                      fill = "#929F8E",
+                      jittered_points = TRUE,
+                      position = position_points_jitter(width = 0.05, height = 0),
+                      point_shape = '|', 
+                      point_size = 2, 
+                      point_alpha = 1, 
+                      alpha = 0.8)+
+  xlab(expression(paste('ExBases (cmol ',kg^{-1},')'))) +
+  theme_ipsum() 
+
+ggsave(file = "../Images/ExBases_DT.jpeg",
+       width = 20,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+
+ggplot(soil.pred.DT)+ 
+  geom_point(aes(
+    x = predpH,
+    y = predExBas,
+    fill = Site
+  ),
+  shape = 21,
+  size = 2.5,
+  alpha = 0.8)+
+  scale_fill_manual(values = c("#BE6A1C", "#637007", "#AEBAD0", "#B18313"))+
+  ylab(expression(paste('ExBases (cmol ',kg^{-1},')')))+
+  xlab("pH")+
+  theme_ipsum() 
+
+ggsave(file = "../Images/pHExbas_DT.jpeg",
+       width = 20,
+       height = 15,
+       units = "cm",
+       dpi = 600)
+
+
+
+```
+
+
