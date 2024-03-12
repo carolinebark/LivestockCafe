@@ -2130,15 +2130,12 @@ ggsave(file = "../Images/InfiltrationCapacity.jpeg",
 
 #soil data mir predicted
 
-soil.pred.DT <-read.csv("C:/Users/aiba/Dropbox/LDSF Drylands Transform/Data/Soil data/ldsf_mirpred_soilvars_Dec2022.csv",
-                        stringsAsFactors = TRUE) %>%
-  mutate (ldsfID = as.character(ldsfID)) %>%
-  filter(Site != "Kalama") %>%
-  filter(Depthcode != "") %>%
-  filter(Cluster != 17) # Trec els clusters 17 perque son les dades dels LCs
+soil.pred.DT <- read.csv("../Data/Field data/ldsf_mirpred_soilvars_Dec2022.csv", stringsAsFactors = TRUE) %>%
+  mutate(ldsfID = as.character(ldsfID)) %>%
+  filter(Site != "Kalama", Depthcode != "", Cluster != 17)
 
-ldsf.DT <- ldsf.DT %>%
-  mutate (ldsfID = as.character(ldsfID))
+ldsf_combined <- ldsf_combined %>%
+  mutate(ldsfid = as.character(ldsfid))
 
 glimpse(soil.pred.DT)
 glimpse(ldsf.DT)
