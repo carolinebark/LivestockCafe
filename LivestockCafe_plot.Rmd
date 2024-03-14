@@ -53,21 +53,22 @@ This report highlights the preliminary data analysis of the LDSF data within the
 
 ```{r LoadData, include=FALSE}
 
-
 ldsf.chep <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Chepareria_clean.csv", stringsAsFactors = TRUE))
 ldsf.loki <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Lokiriama_clean.csv", stringsAsFactors = TRUE))
 ldsf.mata.rupa <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Matany_Rupa_clean.csv", stringsAsFactors = TRUE))
 ldsf.kalama <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Kalama_clean.csv"), stringsAsFactors = TRUE)
 ldsf.chep_LC <- as_tibble(read.csv("../Data/Field data/ldsf_plots_dt_LCs_clean.csv"), stringsAsFactors = TRUE)
 
-colnames(ldsf.chep) <- tolower(colnames(ldsf.chep))
-colnames(ldsf.loki) <- tolower(colnames(ldsf.loki))
-colnames(ldsf.mata.rupa) <- tolower(colnames(ldsf.mata.rupa))
-colnames(ldsf.kalama) <- tolower(colnames(ldsf.kalama))
-colnames(ldsf.chep_LC) <- tolower(colnames(ldsf.chep_LC))
+ldsf.DT <- rbind(ldsf.chep, ldsf.loki, ldsf.mata.rupa, ldsf.kalama)
+ldsf.LC <- rbind(ldsf.chep_LC)
 
-ldsf.DT <- bind_rows(ldsf.chep, ldsf.loki, ldsf.mata.rupa, ldsf.kalama)
-ldsf.LC <- bind_rows(ldsf.chep_LC)
+ldsf.DT <- dplyr::select(ldsf.DT, dplyr::where(~ any(!is.na(.))))
+ldsf.LC <- dplyr::select(ldsf.LC, dplyr::where(~ any(!is.na(.))))
+
+colnames(ldsf.DT) <- tolower(colnames(ldsf.DT))
+colnames(ldsf.LC) <- tolower(colnames(ldsf.LC))
+
+
 
 
 #Rename the site names so that it matches the ldsf.DT 
@@ -105,13 +106,30 @@ knitr::kable(plots.summary_lc, digits = 2, caption = "Table 1. Number of sampled
 ldsf.DT$DataType <- 'DT' # Marking DT rows
 ldsf.LC$DataType <- 'LC' # Marking LC rows
 
-# Combine ldsf.DT and ldsf.LC
+# Lägg till ldsf.id i ldsf.LC
+
+ldsf.LC <- ldsf.LC %>%
+  mutate(ldsfid = paste(substr(site, 1, 4), cluster, plot, sep = "."))
+  
+
+# Visa de första raderna i det uppdaterade datasetet för att kontrollera den nya kolumnen
+#head(ldsf.LC)
+
+#ldsf.DT <- ldsf.DT%>%
+  #rename(ldsfid = `ldsfid...8`)
+
+
+#Combine ldsf.DT and ldsf.LC
 ldsf_combined <- bind_rows(
   ldsf.DT,
   ldsf.LC
 )
 
 
+
+#glimpse(ldsf.DT)
+#glimpse(ldsf.LC)
+#glimpse(ldsf_combined)
 
 
 
@@ -229,32 +247,7 @@ ggsave(file = "../Images/erosionPrevalencePercentage.jpeg",
 ```
 
 
-```{r erosionGraph, fig.cap="The plot distributions for viserosion for each cluster, with global mean and Poisson distribution", out.width="100%", fig.height=9}
 
-
-# plotting the distribution of viserosion, with cluster-specific and global mean lines
-ggplot(ldsf_combined, aes(x = viserosion)) +
-  geom_histogram(aes(y = ..density..), binwidth = 1, color = "black", fill = "skyblue") +
-  facet_grid(site ~ cluster, scales = "free") +
-  labs(title = "Distribution of viserosion by cluster within sites", 
-       x = "viserosion", 
-       y = "Density") +
-  theme_minimal() +
-  geom_vline(data = cluster_means, aes(xintercept = meanviserosion), linetype = "dashed", color = "black", size = 1) +
-  geom_vline(xintercept = mean_vis_erosion, linetype = "dashed", color = "red", size = 1) +
-  geom_text(aes(x = mean_vis_erosion, y = 0, label = sprintf(" %.2f", mean_vis_erosion)), color = "red", vjust = -1, hjust = 1.1, data = data.frame(mean_vis_erosion = mean_vis_erosion)) +
-  geom_text(data = cluster_means, aes(x = meanviserosion, y = 0, label = sprintf(" %.2f", meanviserosion)), color = "black", vjust = -1, hjust = 1.1)
-
-ggsave(file = "../Images/erosionPrevalencePoissonAllclusters.jpeg",
-         width = 30,
-         height = 30,
-         units = "cm",
-         dpi = 600)
-
-
-
-
-```
 
 
 ```{r erosionGraph, fig.cap="The plot distribution for viserosion for each cluster in Cheppareria, with mean", out.width="100%", fig.height=9}
@@ -433,8 +426,6 @@ proj4string(ldsf_combined_cheperaria_spatial) <- CRS("+proj=longlat +datum=WGS84
 
 ```{r erosionGraph, fig.cap="Semivariagram, clusters in whole data set", out.width="100%", fig.height=9}
 
-
-library(gstat)
 
 # Beräkna semivariogram för hela datasetet
 viserosion_variogram_total <- variogram(viserosion~1, data = ldsf_combined_spatial)
@@ -618,105 +609,193 @@ leaflet() %>%
 
 
 
+```{r}
+#glimpse(ldsf.DT)
 
-```{r erosionGraph, fig.cap="Figure Herbescus cover in Chepareria ", out.width="100%", fig.height=9}
+library(data.table)
+
+# Konvertera ldsf_combined till data.table
+setDT(ldsf_combined)
+
+# Använd nu melt från data.table på det omvandlade objektet
+melt.DT.herb <- melt(ldsf_combined,
+                     id.vars = c("site", "cluster", "plot"),
+                     measure.vars = c("herbcovrate1","herbcovrate2","herbcovrate3", "herbcovrate4"))
+
+# Fortsätt med din bearbetning...
+melt.DT.herb[, rating := ifelse(value==0, "absent",
+                               ifelse(value==1, "<4",
+                                      ifelse(value==2, "4-15",
+                                             ifelse(value==3, "15-40",
+                                                    ifelse(value==4, "40-65", ">65")))))]
+
+# Konvertera rating till factor med angivna nivåer
+melt.DT.herb[, rating := factor(rating, levels = c("absent", "<4", "4-15", "15-40", "40-65", ">65"))]
+
+DT.herb.site.cluster <- melt.DT.herb %>%
+  group_by(site, cluster, rating) %>%
+  summarise(count = n(),
+            value = first(value))%>%
+  mutate(freq = (count / sum(count))) %>%
+  ungroup()
+
+```
+
+
+
+
+
+```{r erosionGraph, fig.cap="Figure Herbescus cover in Chep ", out.width="100%", fig.height=9}
 library(tidyverse)
 library(RColorBrewer)
 
-# Antag att ditt dataset ldsf_lok_chep redan är laddat
+# Herbaceous cover rating per cluster in Chepareria site...
 
-# Datatransformation och ordna 'rating' i önskad sekvens
-herb_cover_long <- ldsf_combined_cheperaria %>%
-  pivot_longer(cols = starts_with("HerbCovRate"), names_to = "HerbCovRate", values_to = "value") %>%
-  mutate(rating = case_when(
-    value == 0 ~ "absent",
-    value == 1 ~ "<4%",
-    value == 2 ~ "4-15%",
-    value == 3 ~ "15-40%",
-    value == 4 ~ "40-65%",
-    TRUE ~ ">65%"
-  )) %>%
-  mutate(rating = factor(rating, levels = c("absent", "<4%", "4-15%", "15-40%", "40-65%", ">65%")))
-
-# Summarize the data by cluster and rating, adjust for total coverage
-herb_cover_summary <- herb_cover_long %>%
-  group_by(cluster, rating) %>%
-  summarise(total_coverage = sum(value), .groups = 'drop') %>%
-  group_by(cluster) %>%
-  mutate(freq = total_coverage / sum(total_coverage))
-
-# Skapa en anpassad färgpalett
-color_palette <- colorRampPalette(c("yellow", "red"))(length(unique(herb_cover_long$rating)))
-
-# Skapa en namngiven vektor med färger baserade på 'rating'-nivåerna
-colors_for_ratings <- setNames(color_palette, levels(herb_cover_long$rating))
-
-# Använd den anpassade färgpaletten i din plot med 'rating' i önskad ordning
-herbaceous_cover_plot <- ggplot(herb_cover_summary, aes(x = rating, y = freq * 100, fill = rating)) + 
+DT.herb.site.cluster %>%
+  filter (site == "Chepareria") %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
   geom_bar(stat = "identity") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  ylab("Percentage of Herbaceous Cover (%)") +
-  xlab("Herbaceous Cover Rating (%)") +
-  ggtitle("Herbaceous Cover Rating by cluster (%)") +
-  facet_wrap(~cluster) +
-  scale_fill_manual(values = colors_for_ratings) + # Använd den anpassade färgpaletten
-  theme_gray(base_size = 10)
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)")+
+  ggtitle("Herbaceous Cover Rating (%) in the 10 Plots per Cluster, Chepareria site")+
+  theme_gray(base_size=10) +
+  facet_wrap(~cluster) 
 
-# Visa plotten
-print(herbaceous_cover_plot)
+DT.herb.site.cluster %>%
+  filter (site == "Lokiriama") %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)")+
+  ggtitle("Herbaceous Cover Rating (%) in the 10 Plots per Cluster, Chepareria site")+
+  theme_gray(base_size=10) +
+  facet_wrap(~cluster) 
 
-# Spara plotten
-ggsave(file = "HerbaceousCoverRatingcluster.jpeg", width = 25, height = 15, units = "cm", dpi = 600)
+
 
 
 ```
+
+
+
 ```{r loadsoildata, warning=FALSE, include=FALSE}
 
-#soil data mir predicted
-
 # Läs in och förbehandla soil.pred.DT
-soil.pred.DT <- read.csv("../Data/Field data/ldsf_mirpred_soilvars_Dec2022.csv", stringsAsFactors = TRUE) %>%
-  mutate(ldsfID = as.character(ldsfID)) %>%
-  filter(site != "Kalama") %>%
-  filter(Depthcode != "")
+# Läs in och förbehandla soil.pred.DT
 
-# Antaget att ldsf_lok_chep är definierad någonstans ovanför detta stycke,
-# och du vill utföra en operation på den.
-ldsf_combined <- ldsf_combined %>%
+soil.pred.DT <- read.csv("../Data/Field data/ldsf_mirpred_soilvars_Dec2022.csv", stringsAsFactors = TRUE) %>%
   mutate(ldsfID = as.character(ldsfID))
 
+# Omvandla alla kolumnnamn till små bokstäver
+colnames(soil.pred.DT) <- tolower(colnames(soil.pred.DT))
+
+#Filtrera data baserat på kolumnen "site"
+soil.pred.DT <- soil.pred.DT %>%
+  filter(site != "Kalama", depthcode != "")
 
 
 glimpse(soil.pred.DT)
 
-
 glimpse(ldsf_combined)
 
 
+#combine ldsf
 
-#combine mir + ldsf
+ldsf.soil.pred.DT<- dplyr::left_join(soil.pred.DT, ldsf.DT, by = "ldsfid" )
 
-#ldsf.soil.pred.DT<- dplyr::left_join(soil.pred.DT, ldsf.DT, by = "ldsfID" )
+setdiff(ldsf.DT$ldsfid,soil.pred.DT$ldsfid)  
 
-#setdiff(ldsf.DT$ldsfID,soil.pred.DT$ldsfID) # Falten 2 mostres 
-
-#setdiff(soil.pred.DT$ldsfID, ldsf.DT$ldsfID) 
+setdiff(soil.pred.DT$ldsfID, ldsf.DT$ldsfid) 
 
 ```
+
+```{r}
+ggplot(soil.pred.DT)+ 
+  geom_boxplot(aes(
+    y=predsoc,
+    x=depthcode,
+    fill=depthcode), 
+    show.legend=FALSE) +
+  coord_flip()+
+  facet_wrap(~site, ncol=1)+
+  scale_fill_manual(values = c("#C4B68F", "#87604C")) +
+  ylab(expression(paste('SOC (g ',kg^{-1},')'))) +
+  xlab("")+
+  geom_hline(yintercept = 20,lty=2) +
+  theme_ipsum() 
+
+ggsave(file =  "../Images/SOC.jpeg",
+       width = 20,
+       height = 20,
+       units = "cm",
+       dpi = 600)
+
+
+
+
+```
+
 
 
 ```{r}
-library(raster)
-library(terra)
 
-# Ersätt 'path_to_your_file.tif' med sökvägen till din .tif-fil
+library(terra)
+library(sf)
+
+# Replace 'path_to_your_file.tif' with the path to your .tif file
 rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
 
-# För att visa datan
+# Read the polygon
+polygonData <- st_read("../LC_Polygon_Main.geojson")
+
+# Plot the raster data
 plot(rasterLayer)
-plot()
+
+# Overlay the polygon on top 
+plot(polygonData$geometry, add = TRUE, border = "red", lwd = 2)
+
+
+mean(rasterLayer[["2023 01"]], na.rm=TRUE)
+
+ldsf_spat = ldsf_combined %>% st_as_sf(coords=c("Longitude","Latitude"), crs = 4326)
+
+x = terra::extract(rasterLayer, ldsf_spat, fun = mean, bind = TRUE)
+month_names = names(rasterLayer)
+
+x_melt = pivot_longer(as_tibble(x), cols = month_names)
+
+
+ggplot(as_tibble(x))+
+  geom_line(aes(x = VegStructure, y = ´2023 01´))
+
+ggplot(x_melt)+
+  geom_boxplot(aes(x = name, y = value))
+
 ```
 
+```{r}
+# Apply ifelse statement and name the new column LC
+herb_cover_long$LC <- ifelse(herb_cover_long$cluster %in% c(17, 18), 1, 0)
+soil.pred.DT$LC <- ifelse(soil.pred.DT$cluster %in% c(17, 18), 1, 0)
+ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
+
+filtered_soil.pred.DT <- soil.pred.DT %>%
+  filter(!grepl("Subsoil", depthcode))
+
+# Använd inner_join() från dplyr för inre sammanfogning
+model_data <- inner_join(inner_join(filtered_soil.pred.DT, ldsf_combined, by = c("cluster", "site", "plot")),
+                        melt.DT.herb, by = c("cluster", "site", "plot"))
+
+
+
+
+
+
+```
 
 
 ```{r erosionGraph, fig.cap="Mixed effetcts model ", out.width="100%", fig.height=9}
