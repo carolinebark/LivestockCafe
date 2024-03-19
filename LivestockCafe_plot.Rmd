@@ -220,15 +220,17 @@ eros.preval.cluster <- ldsf_combined %>%
 
 ```{r erosionGraphsBar, fig.cap="Percentage of plots with severe erosion per cluster", out.width="100%", fig.height=9}
 
+filtrerat_dataset_lok_chep <- eros.preval.cluster %>%
+  filter(site %in% c("Chepareria", "Lokiriama"))
 
-ggplot(eros.preval.cluster, aes(x = factor(cluster), y = Frequencysevereerosion * 100, fill = DataType)) +
+ggplot(filtrerat_dataset_lok_chep, aes(x = factor(cluster), y = Frequencysevereerosion * 100, fill = DataType)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.75), alpha = 0.9) +
   scale_fill_manual(values = c("DT" = "#0073C2FF", "LC" = "#EFC000FF")) +
   theme_ipsum(base_size = 14) +
   labs(
-    title = "Percentage of plots with Severe erosion per cluster",
+    title = "Percentage of Plots with Severe Erosion per Cluster",
     x = "cluster",
-    y = "Percentage of Severe erosion",
+    y = "Percentage of severe erosion",
     fill = "Data Type"
   ) +
   facet_wrap(~site, ncol=1, scales = "free_x") +
@@ -348,7 +350,7 @@ ldsf_long_for_plot <- ldsf_long_with_none %>%
 ldsf_erosion_plot_with_percent <- ggplot(ldsf_long_for_plot, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
   geom_bar(stat = "identity", position = "stack") + # Använd position "stack" för att visa total procentandel av erosion
   scale_y_continuous(labels = scales::percent_format()) +
-  labs(x = "cluster", y = "Procent av erosion", fill = "erosionstyp") +
+  labs(x = "cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
   theme_minimal() +
   scale_fill_brewer(palette = "Set3") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
@@ -367,7 +369,7 @@ print(ldsf_erosion_plot_with_percent)
 
 # Filter the dataset to only include data for Chepareria and clusters 7, 8, and 17
 ldsf_specific_clusters <- ldsf_combined %>%
-  filter(site == "Chepareria", cluster %in% c(7, 8, 17))
+  filter(site == "Chepareria", cluster %in% c(7, 8, 17, 18))
 
 # Calculate maxviserosion and the global mean of viserosion for the selected clusters
 maxviserosion_specific <- max(ldsf_specific_clusters$viserosion, na.rm = TRUE)
@@ -387,9 +389,8 @@ if (nrow(ldsf_specific_clusters) > 0) {
     facet_wrap(~ cluster, scales = "free_y") +
     labs(x = "viserosion", y = "Density") +
     geom_vline(data = cluster_means_specific, aes(xintercept = Meanviserosion), linetype = "dashed", color = "black", size = 1) +
-    geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1) +
-    annotate("text", x = mean_vis_erosion_specific, y = 0.9, label = sprintf("Specific clusters mean: %.2f", mean_vis_erosion_specific), color = "red", size = 3, hjust = 1) +
-    geom_text(data = cluster_means_specific, aes(x = Meanviserosion, y = 0.05, label = sprintf("%.2f", Meanviserosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
+    geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1)
+    # Använda inte annotate() och geom_text() för att lägga till text
 
   print(g)
   
@@ -401,6 +402,7 @@ if (nrow(ldsf_specific_clusters) > 0) {
 } else {
   print("No data")
 }
+
 
 
 ```
@@ -483,16 +485,15 @@ cluster_means_specific_lok <- ldsf_specific_clusters_lok %>%
   summarise(Meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
   ungroup()
 
-# plot
 g <- ldsf_specific_clusters_lok %>%
   ggplot(aes(x = viserosion)) +
   geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
   facet_wrap(~ cluster, scales = "free_y") +
   labs(x = "viserosion", y = "Densitet") +
   geom_vline(data = cluster_means_specific_lok, aes(xintercept = Meanviserosion), linetype = "dashed", color = "black", size = 1) +
-  geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1) +
-  annotate("text", x = mean_vis_erosion_specific, y = 0.9, label = sprintf("Specifika kluster medel: %.2f", mean_vis_erosion_specific), color = "red", size = 3, hjust = 1) +
-  geom_text(data = cluster_means_specific_lok, aes(x = Meanviserosion, y = 0.05, label = sprintf("%.2f", Meanviserosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
+  geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1)
+  # annotate("text", x = mean_vis_erosion_specific, y = 0.9, label = sprintf("Specifika kluster medel: %.2f", mean_vis_erosion_specific), color = "red", size = 3, hjust = 1) +
+  # geom_text(data = cluster_means_specific_lok, aes(x = Meanviserosion, y = 0.05, label = sprintf("%.2f", Meanviserosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
 
 print(g)
 
@@ -501,7 +502,6 @@ ggsave(file = "../Images/erosionPrevalencePoissonChepareriaclusters7_8_17.jpeg",
        height = 40,
        units = "cm",
        dpi = 600)
-
 
 ```
 
@@ -622,7 +622,7 @@ melt.DT.herb <- melt(ldsf_combined,
                      id.vars = c("site", "cluster", "plot"),
                      measure.vars = c("herbcovrate1","herbcovrate2","herbcovrate3", "herbcovrate4"))
 
-# Fortsätt med din bearbetning...
+
 melt.DT.herb[, rating := ifelse(value==0, "absent",
                                ifelse(value==1, "<4",
                                       ifelse(value==2, "4-15",
@@ -659,7 +659,7 @@ DT.herb.site.cluster %>%
   theme(axis.text.x = element_text(size=10)) +
   ylab("Percentage of plots (%)") +
   xlab("Herbaceous Cover Rating (%)")+
-  ggtitle("Herbaceous Cover Rating (%) in the 10 Plots per Cluster, Chepareria site")+
+  ggtitle("Herbaceous Cover Rating (%), Chepareria site")+
   theme_gray(base_size=10) +
   facet_wrap(~cluster) 
 
@@ -671,7 +671,7 @@ DT.herb.site.cluster %>%
   theme(axis.text.x = element_text(size=10)) +
   ylab("Percentage of plots (%)") +
   xlab("Herbaceous Cover Rating (%)")+
-  ggtitle("Herbaceous Cover Rating (%) in the 10 Plots per Cluster, Chepareria site")+
+  ggtitle("Herbaceous Cover Rating (%), Lokiriama site")+
   theme_gray(base_size=10) +
   facet_wrap(~cluster) 
 
@@ -714,6 +714,42 @@ setdiff(soil.pred.DT$ldsfID, ldsf.DT$ldsfid)
 ```
 
 ```{r}
+filtrerat_dataset_soil <- ldsf.soil.pred.DT %>%
+  filter(depthcode == "Topsoil")
+
+lokiriama_data_soil <- filtrerat_dataset_soil %>%
+  filter(site.x == "Lokiriama")
+
+chep_data_soil <- filtrerat_dataset_soil  %>%
+  filter(site.x == "Chepareria")
+
+chep_data_soil$cluster.x <- ifelse(chep_data_soil$plot.x %in% c(6, 7, 8, 9, 10) & chep_data_soil$cluster.x == 17, 18, chep_data_soil$cluster.x)
+
+
+
+g_lok<- ggplot(lokiriama_data_soil, aes(x = factor(cluster.x), y = predsoc)) +
+  geom_boxplot() +
+  labs(title = "Soil Organic Carbon per Cluster in Lokiriama",
+       x = "Cluster",
+       y = "Soil Organic Carbon") +
+  theme_minimal()
+
+print(g_lok)
+
+g_chep<- ggplot(chep_data_soil, aes(x = factor(cluster.x), y = predsoc)) +
+  geom_boxplot() +
+  labs(title = "Soil Organic Carbon per Cluster in Chepareria",
+       x = "Cluster",
+       y = "Soil Organic Carbon") +
+  theme_minimal()
+
+print(g_chep)
+
+
+```
+
+
+```{r}
 ggplot(soil.pred.DT)+ 
   geom_boxplot(aes(
     y=predsoc,
@@ -742,7 +778,6 @@ ggsave(file =  "../Images/SOC.jpeg",
 
 
 ```{r}
-
 library(terra)
 library(sf)
 
@@ -752,50 +787,486 @@ rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
 # Read the polygon
 polygonData <- st_read("../LC_Polygon_Main.geojson")
 
-# Plot the raster data
-plot(rasterLayer)
-
-# Overlay the polygon on top 
-plot(polygonData$geometry, add = TRUE, border = "red", lwd = 2)
+raster_df <- as.data.frame(rasterLayer, xy=TRUE)
 
 
-mean(rasterLayer[["2023 01"]], na.rm=TRUE)
+# Överlägg polygonen ovanpå
+#plot(polygonData$geometry, add = TRUE, border = "red", lwd = 2)
 
-ldsf_spat = ldsf_combined %>% st_as_sf(coords=c("Longitude","Latitude"), crs = 4326)
-
-x = terra::extract(rasterLayer, ldsf_spat, fun = mean, bind = TRUE)
-month_names = names(rasterLayer)
-
-x_melt = pivot_longer(as_tibble(x), cols = month_names)
+ldsf_spat <- ldsf_combined %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
 
 
-ggplot(as_tibble(x))+
-  geom_line(aes(x = VegStructure, y = ´2023 01´))
 
-ggplot(x_melt)+
-  geom_boxplot(aes(x = name, y = value))
+
+
+
 
 ```
 
+
 ```{r}
-# Apply ifelse statement and name the new column LC
-herb_cover_long$LC <- ifelse(herb_cover_long$cluster %in% c(17, 18), 1, 0)
+
+library(terra)
+library(tidyverse)
+library(lubridate)
+
+# Läs in rasterdata
+rasterLayer_lok <- rast("../Data/Field data/Maps/Lok_2020_2024.tif")
+polygon_lok <- st_read("../Polygons/Polygon_LC_Lokriama (1).geojson")
+
+
+# Change coordinate system
+polygon_lok<- st_transform(polygon_lok, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
+# Create buffert using meters
+bufferedPolygon_lok <- st_buffer(polygon_lok, dist = 1000)  
+outerBufferArea_lok<- st_difference(bufferedPolygon_lok, polygon_lok)
+
+# Change back to WGS84
+polygonDataWGS84_lok <- st_transform(polygon_lok, crs = 4326)  
+outerBufferAreaWGS84_lok <- st_transform(outerBufferArea_lok, crs = 4326)
+
+plot(polygonDataWGS84_lok)
+
+#Extract data
+livestock_cafe_lok <- terra::extract(rasterLayer_lok, polygonDataWGS84_lok, bind = TRUE)
+month_names <- names(rasterLayer_lok) 
+
+plot(rasterLayer_lok["2020 05"])
+plot(crop(rasterLayer_lok["2020 06"], outerBufferAreaWGS84_lok))
+plot(polygonDataWGS84_lok$geometry, add=TRUE)
+
+outside_livestock_cafe_lok <- terra::extract(rasterLayer_lok, outerBufferAreaWGS84_lok, bind = TRUE)
+month_names <- names(rasterLayer_lok) 
+
+
+livestock_cafe_tbl_lok <- as_tibble(livestock_cafe_lok)
+outside_livestock_cafe_tbl_lok <- as_tibble(outside_livestock_cafe_lok)
+
+livestock_cafe_tbl_lok$LC<- 1
+outside_livestock_cafe_tbl_lok$LC <- 0
+
+ls_in_out_lok= bind_rows(livestock_cafe_tbl_lok , outside_livestock_cafe_tbl_lok)
+ls_in_out_melt_lok <- pivot_longer(ls_in_out_lok, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+ls_in_out_melt_lok$Month <- as.Date(paste0(ls_in_out_melt_lok$Month, " 01"), format="%Y %m %d")
+
+
+# Beräkna andelen NA per månad och LC
+prop_na_per_month_lc <- ls_in_out_melt_lok %>%
+  group_by(Month, LC) %>%
+  summarise(Prop_NA = mean(is.na(NDVI))) %>%
+  ungroup()
+
+# Filtrera för att behålla månader där andelen NA är <= 70% för varje LC
+valid_months_lc <- prop_na_per_month_lc %>%
+  filter(Prop_NA <= 0.7) %>%
+  dplyr::select(Month, LC)
+
+
+# Monthly average
+monthly_mean_ndvi_lok <- ls_in_out_melt_lok %>%
+  group_by(Month, LC) %>%
+  summarise(Mean_NDVI_month_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+#Yearly
+annual_mean_ndvi_lok <- ls_in_out_melt_lok %>%
+  mutate(Year = format(Month, "%Y")) %>% # Extrahera året från 'Month'
+  group_by(Year, LC) %>%
+  summarise(Mean_NDVI_year_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+# Gå med i datan för att endast inkludera giltiga månader/LC för plottning
+plot_data <- monthly_mean_ndvi_lok %>%
+  inner_join(valid_months_lc, by = c("Month", "LC"))
+
+# Plottning
+ggplot(plot_data, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje LC-värde
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "Monthly average NDVI (filtered)",
+       x = "Månad",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+# Plot monthly
+ggplot(monthly_mean_ndvi_lok, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "The Average NDVI per Month",
+       x = "Month",
+       y = "The average NDVI",
+       color = "LC") 
+
+# Plot yearly
+ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "NDVI on a yearly average",
+       x = "Year",
+       y = "The average NDVI",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+
+
+
+
+```
+
+
+```{r}
+
+#raster_long <- raster_df %>%
+ # pivot_longer(cols = starts_with("20"), names_to = "date", values_to = "NDVI")
+
+#raster_long$date <- as.Date(paste0(raster_long$date, " 01"), format="%Y %m %d")
+
+#print(raster_long)
+
+
+# Transformera till ett koordinatsystem som använder meter (ex. UTM)
+polygonData <- st_transform(polygonData, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
+# Skapa en buffert med X meter
+bufferedPolygon <- st_buffer(polygonData, dist = 1000)  
+outerBufferArea <- st_difference(bufferedPolygon, polygonData)
+
+polygonDataWGS84 <- st_transform(polygonData, crs = 4326)  # Omvandla ursprungliga polygonen tillbaka till WGS84
+bufferedPolygonWGS84 <- st_transform(bufferedPolygon, crs = 4326)  # Omvandla buffrad polygon tillbaka till WGS84
+outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)  # Omvandla det yttre buffertområdet tillbaka till WGS84
+
+plot(outerBufferAreaWGS84)
+plot(polygonDataWGS84)
+
+
+#Extrahera data
+livestock_cafe <- terra::extract(rasterLayer, polygonDataWGS84, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+
+outside_livestock_cafe <- terra::extract(rasterLayer, outerBufferAreaWGS84, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+livestock_cafe_tbl <- as_tibble(livestock_cafe)
+outside_livestock_cafe_tbl <- as_tibble(outside_livestock_cafe)
+
+livestock_cafe_tbl$id_source <- 1
+outside_livestock_cafe_tbl$id_source <- 0
+
+
+ls_in_out = bind_rows(livestock_cafe_tbl , outside_livestock_cafe_tbl)
+
+
+ls_in_out_melt <- pivot_longer(ls_in_out, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+
+
+ls_in_out_melt$Month <- as.Date(paste0(ls_in_out_melt$Month, " 01"), format="%Y %m %d")
+
+# Beräkna genomsnittlig NDVI för varje månad och id_source
+monthly_mean_ndvi <- ls_in_out_melt %>%
+  group_by(Month, id_source) %>%
+  summarise(Mean_NDVI_month = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+annual_mean_ndvi <- ls_in_out_melt %>%
+  mutate(Year = format(Month, "%Y")) %>% # Extrahera året från 'Month'
+  group_by(Year, id_source) %>%
+  summarise(Mean_NDVI_year = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+
+# Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
+ggplot(monthly_mean_ndvi, aes(x = Month, y = Mean_NDVI_month, color = factor(id_source))) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "The Average NDVI per Month",
+       x = "Month",
+       y = "The average NDVI",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(id_source), group = id_source)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "NDVI on a yearly average",
+       x = "Year",
+       y = "The average NDVI",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+
+
+# Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
+#ggplot(ls_in_out_melt, aes(x = Month, y = NDVI, color = factor(id_source))) +
+ # geom_smooth(method = "loess")+# Skapa en linjeplot
+  #scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  #theme_minimal() + # Använd ett minimalt tema
+  #labs(title = "Genomsnittligt NDVI över tid",
+       #x = "Månad",
+       #y = "Genomsnittligt NDVI",
+       #color = "Källa") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+
+
+
+
+
+
+```
+```{r}
+ls_in_out_melt$YearMonth <- format(ls_in_out_melt$Month, "%Y-%m")
+
+# Plotta NDVI-värden för varje månad, uppdelat efter id_source
+ggplot(ls_in_out_melt, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "NDVI per month",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+```
+
+
+```{r}
+
+
+ldsf_combined <- ldsf_combined %>%
+  mutate(
+herb_cov_total = herbcovrate1 + herbcovrate2 + herbcovrate3 + herbcovrate4)
+
+
 soil.pred.DT$LC <- ifelse(soil.pred.DT$cluster %in% c(17, 18), 1, 0)
 ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
 
+
+
+
 filtered_soil.pred.DT <- soil.pred.DT %>%
-  filter(!grepl("Subsoil", depthcode))
+  filter(depthcode=="Topsoil")
 
-# Använd inner_join() från dplyr för inre sammanfogning
-model_data <- inner_join(inner_join(filtered_soil.pred.DT, ldsf_combined, by = c("cluster", "site", "plot")),
-                        melt.DT.herb, by = c("cluster", "site", "plot"))
+glimpse(filtered_soil.pred.DT)
+glimpse(ldsf_combined)
 
+model_data <- inner_join(filtered_soil.pred.DT, ldsf_combined, by = c("ldsfid"))
+model_data <- model_data %>% mutate(LC.y=as.factor(LC.y))
+
+glimpse(model_data)
+
+
+  #rows that appear in ldsf but not in soil 
+setdiff(ldsf, soil) 
+
+  #rows that appear in soil but not ldsf 
+setdiff(soil, ldsf) 
+
+result <- setdiff(soil, ldsf)
+length(result)
 
 
 
 
 
 ```
+
+
+
+```{r}
+library(sjPlot)
+library(performance)
+library(see)
+library(lmerTest)
+
+
+model_SOC <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = model_data)
+summary(model_SOC)
+
+model_herb_cov <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = model_data)
+summary(model_herb_cov)
+
+model_erosion <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = model_data)
+summary(model_erosion)
+
+sjPlot::tab_model(model_SOC)
+sjPlot::tab_model(model_herb_cov)
+sjPlot::tab_model(model_erosion)
+
+performance::check_model(model_SOC)
+
+
+```
+```{r}
+library(sjPlot)
+library(ggplot2)
+library(cowplot) 
+library(patchwork)
+
+# Skapa plotar
+plot_herb_all_clusters <- plot_model(model_herb_cov, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Herbaceous Cover")
+
+plot_viserosion_all_clusters<- plot_model(model_erosion, 
+                                  type = "est",
+                                  transform = NULL,
+                                  vline.color = "gray",
+                                  show.values = TRUE,
+                                  value.offset = 0.4,
+                                  value.size = 3.5,
+                                  colors = c("#CC6A70", "#22A884"),
+                                  title = "Viserosion")
+
+plot_predsoc_all_clusters<- plot_model(model_SOC, 
+                               type = "est",
+                               transform = NULL,
+                               vline.color = "gray",
+                               show.values = TRUE,
+                               value.offset = 0.4,
+                               value.size = 3.5,
+                               colors = c("#CC6A70", "#22A884"),
+                               title = "PredSOC")
+
+combined_plot <- plot_herb_all_clusters + plot_viserosion_all_clusters + plot_predsoc_all_clusters +
+  plot_layout(ncol = 1)
+
+print(combined_plot)
+```
+
+
+```{r}
+library(broom.mixed)
+library(dplyr)
+
+tidy_SOC <- broom.mixed::tidy(model_SOC, effects = "fixed", conf.int = TRUE) %>%
+  mutate(Significant = ifelse(p.value < 0.05, "Significant", "Not Significant"),
+         Color = ifelse(Significant == "Significant", "#22A884", "#CC6A70"))
+
+plot_SOC <- ggplot(tidy_SOC, aes(x = term, y = estimate, color = Color)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  scale_color_identity() + # Använder faktiska färgvärden från 'Color' kolumnen
+  labs(title = "Soil Organic Carbon (SOC)", y = "Estimate", x = "") +
+  theme_minimal()
+
+print(plot_SOC)
+```
+
+
+```{r}
+lokiriama_model_data <- model_data %>%
+  filter(site.x == "Lokiriama")
+
+library(lme4)
+library(sjPlot)
+library(patchwork)
+
+model_herb_lok <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
+model_viserosion_lok<- lmer(viserosion ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
+model_predsoc_lok <- lmer(predsoc~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
+
+summary(model_herb_lok)
+summary(model_viserosion_lok)
+summary(model_predsoc_lok)
+
+sjPlot::tab_model(model_herb_lok)
+sjPlot::tab_model(model_viserosion_lok)
+sjPlot::tab_model(model_predsoc_lok)
+
+library(sjPlot)
+library(ggplot2)
+library(cowplot) 
+
+# Skapa plotar
+plot_herb_lok <- plot_model(model_herb_lok, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Herbaceous Cover")
+
+plot_viserosion_lok <- plot_model(model_viserosion_lok, 
+                                  type = "est",
+                                  transform = NULL,
+                                  vline.color = "gray",
+                                  show.values = TRUE,
+                                  value.offset = 0.4,
+                                  value.size = 3.5,
+                                  colors = c("#CC6A70", "#22A884"),
+                                  title = "Viserosion")
+
+plot_predsoc_lok <- plot_model(model_predsoc_lok, 
+                               type = "est",
+                               transform = NULL,
+                               vline.color = "gray",
+                               show.values = TRUE,
+                               value.offset = 0.4,
+                               value.size = 3.5,
+                               colors = c("#CC6A70", "#22A884"),
+                               title = "PredSOC")
+
+combined_plot <- plot_herb_lok + plot_viserosion_lok + plot_predsoc_lok + 
+                 plot_layout(ncol = 1, guides = "collect")
+
+print(combined_plot)
+
+#print(plot_herb_lok)
+#print(plot_viserosion_lok)
+#print(plot_predsoc_lok)
+
+
+```
+```{r}
+# Filter the dataset for the site "Chepareria"
+chepareria_model_data <- model_data %>%
+  filter(site == "Chepareria")
+
+
+
+model_herb_chep <- lmer(herb_cov_total ~ LC.y + (1 | cluster), data = chepareria_model_data)
+model_viserosion_chep <- lmer(viserosion ~ LC.y + (1 | cluster), data = chepareria_model_data)
+model_predsoc_chep <- lmer(predsoc ~ LC.y + (1 | cluster), data = chepareria_model_data)
+
+
+summary(model_herb_chep)
+summary(model_viserosion_chep)
+summary(model_predsoc_chep)
+
+tab_model(model_herb_chep)
+tab_model(model_viserosion_chep)
+tab_model(model_predsoc_chep)
+
+
+plot_herb_chep <- plot_model(model_herb_chep, type = "est", title = "Herbaceous Cover - Chepareria")
+plot_viserosion_chep <- plot_model(model_viserosion_chep, type = "est", title = "Viserosion - Chepareria")
+plot_predsoc_chep <- plot_model(model_predsoc_chep, type = "est", title = "PredSOC - Chepareria")
+
+
+combined_plot_chep <- plot_herb_chep + plot_viserosion_chep + plot_predsoc_chep + 
+  plot_layout(ncol = 1, guides = "collect")
+
+print(combined_plot_chep)
+
+```
+
 
 
 ```{r erosionGraph, fig.cap="Mixed effetcts model ", out.width="100%", fig.height=9}
