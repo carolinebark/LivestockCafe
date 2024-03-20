@@ -251,7 +251,6 @@ ggsave(file = "../Images/erosionPrevalencePercentage.jpeg",
 
 
 
-
 ```{r erosionGraph, fig.cap="The plot distribution for viserosion for each cluster in Cheppareria, with mean", out.width="100%", fig.height=9}
 
 # Filter to include only site Chepareria
@@ -274,17 +273,10 @@ if (nrow(ldsf_combined_cheperaria) > 0) {
     facet_wrap(~ cluster, scales = "free_y") +
     labs(x = "viserosion", y = "Density") +
     geom_vline(data = cluster_means_cheperaria, aes(xintercept = meanviserosion), linetype = "dashed", color = "black", size = 1) +
-    geom_vline(xintercept = mean_vis_erosion_cheperaria, color = "red", linetype = "dashed", size = 1) +
-    annotate("text", x = mean_vis_erosion_cheperaria, y = 0.9, label = sprintf("Chepareria mean: %.2f", mean_vis_erosion_cheperaria), color = "red", size = 3, hjust = 1) +
-    geom_text(data = cluster_means_cheperaria, aes(x = meanviserosion, y = 0.05, label = sprintf("%.2f", meanviserosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
+    geom_vline(xintercept = mean_vis_erosion_cheperaria, color = "red", linetype = "dashed", size = 1)
   
   print(g)
   
-  ggsave(file = "../Images/erosionPrevalenceChepareriacluster.jpeg",
-         width = 20,
-         height = 40,
-         units = "cm",
-         dpi = 600)
 } else {
   print("No data")
 }
@@ -293,48 +285,16 @@ if (nrow(ldsf_combined_cheperaria) > 0) {
 
 
 
-```
-
-
-
-
-```{r erosionGraph, fig.cap=" Type of erosion", out.width="100%", fig.height=9}
-library(tidyverse)
-
-#FIXA SÅ ATT DET BLIR SAMMA plotTAR SOM I HERB
-
-# Antag att ditt dataset är laddat och heter ldsf_combined_cheperari
-# Om inte, ladda det här, exempel:
-# ldsf_combined_cheperari <- read.csv("sökväg/till/din/fil.csv")
-
-# Förbered data och beräkna procentandelar
-ldsf_long <- ldsf_combined_cheperaria %>%
-  pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
-  group_by(cluster, erosionValue) %>%
-  summarise(Count = n(), .groups = 'drop') %>%
-  group_by(cluster) %>%
-  mutate(Total = sum(Count), Percentage = (Count / Total) * 100) %>%
-  ungroup()
-
-# Skapa stapeldiagram för procentandelar med justerade mellanrum mellan clusterna
-ggplot(ldsf_long, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
-  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
-  labs(x = "cluster", y = "Procent", fill = "erosionstyp") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Set3") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
 
 ```
+
+
+
 
 ```{r}
 library(tidyverse)
 
-# Antag att ditt dataset är laddat och heter ldsf_combined_cheperari
-# Om inte, ladda det här, exempel:
-# ldsf_combined_cheperari <- read.csv("sökväg/till/din/fil.csv")
-
-# Beräkna procentandelar inklusive 'none'
+# Count the percentage of erosiontype, includeing 'none'
 ldsf_long_with_none <- ldsf_combined_cheperaria %>%
   pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
   count(cluster, erosionValue) %>%
@@ -342,47 +302,69 @@ ldsf_long_with_none <- ldsf_combined_cheperaria %>%
   mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
   ungroup()
 
-# Filtrera bort 'none' från den dataset som ska plottas
+# Filter the none from the plot
 ldsf_long_for_plot <- ldsf_long_with_none %>%
   filter(erosionValue != "none")
 
-# Skapa stapeldiagramplotten med procentandelar där fördelningen inom varje stapel är färgkodad
+
 ldsf_erosion_plot_with_percent <- ggplot(ldsf_long_for_plot, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
-  geom_bar(stat = "identity", position = "stack") + # Använd position "stack" för att visa total procentandel av erosion
+  geom_bar(stat = "identity", position = "stack") + 
   scale_y_continuous(labels = scales::percent_format()) +
   labs(x = "cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
   theme_minimal() +
   scale_fill_brewer(palette = "Set3") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-# Visa plotten
+
 print(ldsf_erosion_plot_with_percent)
 
 
 ```
+```{r}
+
+ldsf_long_with_none_lok <- ldsf_combined_lokiriama %>%
+  pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
+  count(cluster, erosionValue) %>%
+  group_by(cluster) %>%
+  mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
+  ungroup()
+
+ldsf_long_for_plot_lok <- ldsf_long_with_none_lok %>%
+  filter(erosionValue != "none")
+
+ldsf_erosion_plot_with_percent_lok <- ggplot(ldsf_long_for_plot_lok, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
+  geom_bar(stat = "identity", position = "stack") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = "cluster", y = "Procent av erosion", fill = "erosionstyp") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
+print(ldsf_erosion_plot_with_percent_lok)
 
-```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 7, 8 and 17", out.width="100%", fig.height=9}
+```
 
+
+```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 7, 8 and 17 Chepp", out.width="100%", fig.height=9}
 
 
 # Filter the dataset to only include data for Chepareria and clusters 7, 8, and 17
-ldsf_specific_clusters <- ldsf_combined %>%
+ldsf_specific_clusters_chepp <- ldsf_combined %>%
   filter(site == "Chepareria", cluster %in% c(7, 8, 17, 18))
 
 # Calculate maxviserosion and the global mean of viserosion for the selected clusters
-maxviserosion_specific <- max(ldsf_specific_clusters$viserosion, na.rm = TRUE)
-mean_vis_erosion_specific <- mean(ldsf_specific_clusters$viserosion, na.rm = TRUE)
+maxviserosion_specific <- max(ldsf_specific_clusters_chepp$viserosion, na.rm = TRUE)
+mean_vis_erosion_specific <- mean(ldsf_specific_clusters_chepp$viserosion, na.rm = TRUE)
 
 # Calculate the mean of viserosion for each of the selected clusters
-cluster_means_specific <- ldsf_specific_clusters %>%
+cluster_means_specific <- ldsf_specific_clusters_chepp%>%
   group_by(cluster) %>%
   summarise(Meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
   ungroup()
 
 # plot
-if (nrow(ldsf_specific_clusters) > 0) {
+if (nrow(ldsf_specific_clusters_chepp) > 0) {
   g <- ldsf_specific_clusters %>%
     ggplot(aes(x = viserosion)) +
     geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
@@ -390,15 +372,9 @@ if (nrow(ldsf_specific_clusters) > 0) {
     labs(x = "viserosion", y = "Density") +
     geom_vline(data = cluster_means_specific, aes(xintercept = Meanviserosion), linetype = "dashed", color = "black", size = 1) +
     geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1)
-    # Använda inte annotate() och geom_text() för att lägga till text
 
   print(g)
   
-  ggsave(file = "../Images/erosionPrevalencePoissonChepareriaclusters7_8_17.jpeg",
-         width = 20,
-         height = 40,
-         units = "cm",
-         dpi = 600)
 } else {
   print("No data")
 }
@@ -406,71 +382,12 @@ if (nrow(ldsf_specific_clusters) > 0) {
 
 
 ```
-
-```{r erosionGraph, fig.cap="Semivariagram, the whole data set", out.width="100%", fig.height=9}
-
-
-# Skapa SpatialPointsDataFrame för hela datasetet
-ldsf_combined_spatial <- ldsf_combined
-coordinates(ldsf_combined_spatial) <- ~longitude + latitude
-proj4string(ldsf_combined_spatial) <- CRS("+proj=longlat +datum=WGS84")
-
-# Skapa SpatialPointsDataFrame för Chepareria
-ldsf_combined_cheperaria_spatial <- ldsf_combined %>%
-  filter(site == "Chepareria")
-
-coordinates(ldsf_combined_cheperaria_spatial) <- ~longitude + latitude
-proj4string(ldsf_combined_cheperaria_spatial) <- CRS("+proj=longlat +datum=WGS84")
-
-
-
-```
-
-```{r erosionGraph, fig.cap="Semivariagram, clusters in whole data set", out.width="100%", fig.height=9}
-
-
-# Beräkna semivariogram för hela datasetet
-viserosion_variogram_total <- variogram(viserosion~1, data = ldsf_combined_spatial)
-
-# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna
-# Exempel: vgm(nugget, model type, range, sill)
-fit_total <- fit.variogram(viserosion_variogram_total, model = vgm(1, "Sph", 1, 1))
-
-# plotta både de beräknade punkterna och den anpassade modellen
-plot(viserosion_variogram_total, model = fit_total, main = "Semivariogram for viserosion - Whole Dataset",
-     pch = 20, col = "#FF5733", cex = 2)
-
-
-```
-
-```{r erosionGraph, fig.cap="Semivariagram, clusters in Cheppeirera", out.width="100%", fig.height=9}
-
-# Beräkna semivariogram för Chepareria
-viserosion_variogram_cheperaria <- variogram(viserosion~1, data = ldsf_combined_cheperaria_spatial)
-
-# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna för Chepareria
-fit_cheperaria <- fit.variogram(viserosion_variogram_cheperaria, model = vgm(1, "Sph", 1, 1))
-
-# plotta både de beräknade punkterna och den anpassade modellen för Chepareria
-plot(viserosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariogram for viserosion in Chepareria",
-     pch = 20, col = "#FF5733", cex = 2)
-
-
-```
-
-
-
 ```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 6,7, 10 and 17 Lokiriama", out.width="100%", fig.height=9}
 
 
 # Filtrera för att endast inkludera site Chepareria och Lokiriama
 ldsf_combined_lokiriama <- ldsf_combined %>%
   filter(site %in% c("Lokiriama"))
-
-
-# Filtrera för att endast inkludera site Chepareria och Lokiriama
-ldsf_lok_chep <- ldsf_combined %>%
-  filter(site %in% c("Chepareria", "Lokiriama"))
 
 ldsf_specific_clusters_lok <- ldsf_combined %>%
   filter(site == "Lokiriama", cluster %in% c(6, 7, 10, 17))
@@ -504,64 +421,81 @@ ggsave(file = "../Images/erosionPrevalencePoissonChepareriaclusters7_8_17.jpeg",
        dpi = 600)
 
 ```
+```{r erosionGraph, fig.cap="Semivariagram viserosion, the whole data set", out.width="100%", fig.height=9}
 
-```{r erosionGraph, fig.cap="Semivariagram, clusters in Lokiriama", out.width="100%", fig.height=9}
+
+# Skapa SpatialPointsDataFrame för hela datasetet
+ldsf_combined_spatial <- ldsf_combined
+coordinates(ldsf_combined_spatial) <- ~longitude + latitude
+proj4string(ldsf_combined_spatial) <- CRS("+proj=longlat +datum=WGS84")
+
+# Skapa SpatialPointsDataFrame för Chepareria
+ldsf_combined_cheperaria_spatial <- ldsf_combined %>%
+  filter(site == "Chepareria")
+
+coordinates(ldsf_combined_cheperaria_spatial) <- ~longitude + latitude
+proj4string(ldsf_combined_cheperaria_spatial) <- CRS("+proj=longlat +datum=WGS84")
+
+# Beräkna semivariogram för hela datasetet
+viserosion_variogram_total <- variogram(viserosion~1, data = ldsf_combined_spatial)
+
+# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna
+# Exempel: vgm(nugget, model type, range, sill)
+fit_total <- fit.variogram(viserosion_variogram_total, model = vgm(1, "Sph", 1, 1))
+
+# plotta både de beräknade punkterna och den anpassade modellen
+plot(viserosion_variogram_total, model = fit_total, main = "Semivariogram for viserosion - Whole Dataset",
+     pch = 20, col = "#FF5733", cex = 2)
 
 
-# Load required library
-library(sp)
 
-# Create a copy of ldsf_combined_lokiriama
+```
+
+
+```{r erosionGraph, fig.cap="Semivariagram viserosion, Cheppeirera", out.width="100%", fig.height=9}
+
+# Beräkna semivariogram för Chepareria
+viserosion_variogram_cheperaria <- variogram(viserosion~1, data = ldsf_combined_cheperaria_spatial)
+
+# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna för Chepareria
+fit_cheperaria <- fit.variogram(viserosion_variogram_cheperaria, model = vgm(1, "Sph", 1, 1))
+
+# plotta både de beräknade punkterna och den anpassade modellen för Chepareria
+plot(viserosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariogram for viserosion in Chepareria",
+     pch = 20, col = "#FF5733", cex = 2)
+
+
+```
+
+
+
+
+```{r erosionGraph, fig.cap="Semivariagram viserosion, Lokiriama", out.width="100%", fig.height=9}
+
+
+
 ldsf_combined_lokiriama_spatial <- ldsf_combined_lokiriama
 
-# Set coordinates
+
 coordinates(ldsf_combined_lokiriama_spatial) <- c("longitude", "latitude")
 
-# Set projection
+
 proj4string(ldsf_combined_lokiriama_spatial) <- CRS("+proj=longlat +datum=WGS84")
 
-# Beräkna semivariogram för Lokiriama
+
 viserosion_variogram_lok <- variogram(viserosion ~ 1, data = ldsf_combined_lokiriama_spatial)
 
-# Skapa en startmodell och anpassa en semivariogrammodell
+
 fit_lok <- fit.variogram(viserosion_variogram_lok, model = vgm(1, "Sph", 1, 1))
 
-# Plotta både de beräknade punkterna och den anpassade modellen för Lokiriama
 plot(viserosion_variogram_lok, model = fit_lok, main = "Semivariogram for viserosion in Lokiriama",
      pch = 20, col = "#FF5733", cex = 2)
 
 
 ```
-```{r}
-# Beräkna procentandelar inklusive 'none'
-ldsf_long_with_none_lok <- ldsf_combined_lokiriama %>%
-  pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
-  count(cluster, erosionValue) %>%
-  group_by(cluster) %>%
-  mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
-  ungroup()
-
-# Filtrera bort 'none' från den dataset som ska plottas
-ldsf_long_for_plot_lok <- ldsf_long_with_none_lok %>%
-  filter(erosionValue != "none")
-
-# Skapa stapeldiagramplotten med procentandelar där fördelningen inom varje stapel är färgkodad
-ldsf_erosion_plot_with_percent_lok <- ggplot(ldsf_long_for_plot_lok, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
-  geom_bar(stat = "identity", position = "stack") + # Använd position "stack" för att visa total procentandel av erosion
-  scale_y_continuous(labels = scales::percent_format()) +
-  labs(x = "cluster", y = "Procent av erosion", fill = "erosionstyp") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Set3") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-# Visa plotten
-print(ldsf_erosion_plot_with_percent_lok)
-
-```
 
 
 ```{r erosionGraph, fig.cap="Visible erosion score in each plot", out.width="100%", fig.height=9}
-
 
 
 pal_ero <- colorNumeric(palette = "YlOrBr", domain = c(0:4))
@@ -649,20 +583,22 @@ DT.herb.site.cluster <- melt.DT.herb %>%
 library(tidyverse)
 library(RColorBrewer)
 
-# Herbaceous cover rating per cluster in Chepareria site...
+# Herbaceous cover rating per cluster in Chepareria site
 
 DT.herb.site.cluster %>%
-  filter (site == "Chepareria") %>%
-  ggplot(aes(x = reorder(rating, value),
-             y = freq*100)) + 
+  filter(site == "Chepareria") %>%
+  ggplot(aes(x = reorder(rating, value), y = freq*100)) + 
   geom_bar(stat = "identity") +
+  scale_y_continuous(limits = c(0, 100)) + # Sätter y-axelns gränser till 0 till 100
   theme(axis.text.x = element_text(size=10)) +
   ylab("Percentage of plots (%)") +
-  xlab("Herbaceous Cover Rating (%)")+
-  ggtitle("Herbaceous Cover Rating (%), Chepareria site")+
-  theme_gray(base_size=10) +
-  facet_wrap(~cluster) 
+  xlab("Herbaceous Cover Rating (%)") +
+  ggtitle("Herbaceous Cover Rating (%), Chepareria site") +
+  theme_gray(base_size = 10) +
+  facet_wrap(~cluster)
 
+
+# Herbaceous cover rating per cluster in Lokiriama site
 DT.herb.site.cluster %>%
   filter (site == "Lokiriama") %>%
   ggplot(aes(x = reorder(rating, value),
@@ -749,33 +685,6 @@ print(g_chep)
 ```
 
 
-```{r}
-ggplot(soil.pred.DT)+ 
-  geom_boxplot(aes(
-    y=predsoc,
-    x=depthcode,
-    fill=depthcode), 
-    show.legend=FALSE) +
-  coord_flip()+
-  facet_wrap(~site, ncol=1)+
-  scale_fill_manual(values = c("#C4B68F", "#87604C")) +
-  ylab(expression(paste('SOC (g ',kg^{-1},')'))) +
-  xlab("")+
-  geom_hline(yintercept = 20,lty=2) +
-  theme_ipsum() 
-
-ggsave(file =  "../Images/SOC.jpeg",
-       width = 20,
-       height = 20,
-       units = "cm",
-       dpi = 600)
-
-
-
-
-```
-
-
 
 ```{r}
 library(terra)
@@ -785,17 +694,15 @@ library(sf)
 rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
 
 # Read the polygon
-polygonData <- st_read("../LC_Polygon_Main.geojson")
+polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
 
 raster_df <- as.data.frame(rasterLayer, xy=TRUE)
 
 
-# Överlägg polygonen ovanpå
+# Overlay the polygon
 #plot(polygonData$geometry, add = TRUE, border = "red", lwd = 2)
 
 ldsf_spat <- ldsf_combined %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
-
-
 
 
 
@@ -815,10 +722,10 @@ rasterLayer_lok <- rast("../Data/Field data/Maps/Lok_2020_2024.tif")
 polygon_lok <- st_read("../Polygons/Polygon_LC_Lokriama (1).geojson")
 
 
-# Change coordinate system
+# Change coordinate system, in order to buffer in meters
 polygon_lok<- st_transform(polygon_lok, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
 # Create buffert using meters
-bufferedPolygon_lok <- st_buffer(polygon_lok, dist = 1000)  
+bufferedPolygon_lok <- st_buffer(polygon_lok, dist = 100)  
 outerBufferArea_lok<- st_difference(bufferedPolygon_lok, polygon_lok)
 
 # Change back to WGS84
@@ -831,9 +738,9 @@ plot(polygonDataWGS84_lok)
 livestock_cafe_lok <- terra::extract(rasterLayer_lok, polygonDataWGS84_lok, bind = TRUE)
 month_names <- names(rasterLayer_lok) 
 
-plot(rasterLayer_lok["2020 05"])
-plot(crop(rasterLayer_lok["2020 06"], outerBufferAreaWGS84_lok))
-plot(polygonDataWGS84_lok$geometry, add=TRUE)
+#plot(rasterLayer_lok["2020 05"])
+#plot(crop(rasterLayer_lok["2020 06"], outerBufferAreaWGS84_lok))
+#plot(polygonDataWGS84_lok$geometry, add=TRUE)
 
 outside_livestock_cafe_lok <- terra::extract(rasterLayer_lok, outerBufferAreaWGS84_lok, bind = TRUE)
 month_names <- names(rasterLayer_lok) 
@@ -850,13 +757,13 @@ ls_in_out_melt_lok <- pivot_longer(ls_in_out_lok, cols = all_of(month_names), na
 ls_in_out_melt_lok$Month <- as.Date(paste0(ls_in_out_melt_lok$Month, " 01"), format="%Y %m %d")
 
 
-# Beräkna andelen NA per månad och LC
+# Count NA per month and LC
 prop_na_per_month_lc <- ls_in_out_melt_lok %>%
   group_by(Month, LC) %>%
   summarise(Prop_NA = mean(is.na(NDVI))) %>%
   ungroup()
 
-# Filtrera för att behålla månader där andelen NA är <= 70% för varje LC
+#Filter just the months where NA is <= 70%, for each LC
 valid_months_lc <- prop_na_per_month_lc %>%
   filter(Prop_NA <= 0.7) %>%
   dplyr::select(Month, LC)
@@ -876,7 +783,7 @@ annual_mean_ndvi_lok <- ls_in_out_melt_lok %>%
   ungroup()
 
 
-# Gå med i datan för att endast inkludera giltiga månader/LC för plottning
+# Just plot months where less than 70% of pixels are NA
 plot_data <- monthly_mean_ndvi_lok %>%
   inner_join(valid_months_lc, by = c("Month", "LC"))
 
@@ -897,7 +804,7 @@ ggplot(monthly_mean_ndvi_lok, aes(x = Month, y = Mean_NDVI_month_lok, color = fa
   geom_point() + # Lägg till punkter för varje datapunkt
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
   theme_minimal() + # Använd ett minimalt tema
-  labs(title = "The Average NDVI per Month",
+  labs(title = "The Average NDVI per Month, Lokiriama",
        x = "Month",
        y = "The average NDVI",
        color = "LC") 
@@ -908,43 +815,34 @@ ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = facto
   geom_point() + # Lägg till punkter för varje datapunkt
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
   theme_minimal() + # Använd ett minimalt tema
-  labs(title = "NDVI on a yearly average",
+  labs(title = "NDVI on a yearly average, Lokiriama",
        x = "Year",
        y = "The average NDVI",
        color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
 
 
 
-
-
 ```
-
 
 ```{r}
 
-#raster_long <- raster_df %>%
- # pivot_longer(cols = starts_with("20"), names_to = "date", values_to = "NDVI")
-
-#raster_long$date <- as.Date(paste0(raster_long$date, " 01"), format="%Y %m %d")
-
-#print(raster_long)
 
 
-# Transformera till ett koordinatsystem som använder meter (ex. UTM)
-polygonData <- st_transform(polygonData, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
+
+polygon_data_chepp_main <- st_transform(polygon_data_chepp_main, crs = 32633) 
 # Skapa en buffert med X meter
-bufferedPolygon <- st_buffer(polygonData, dist = 1000)  
-outerBufferArea <- st_difference(bufferedPolygon, polygonData)
+bufferedPolygon <- st_buffer(polygon_data_chepp_main, dist = 100)  
+outerBufferArea <- st_difference(bufferedPolygon, polygon_data_chepp_main)
 
-polygonDataWGS84 <- st_transform(polygonData, crs = 4326)  # Omvandla ursprungliga polygonen tillbaka till WGS84
-bufferedPolygonWGS84 <- st_transform(bufferedPolygon, crs = 4326)  # Omvandla buffrad polygon tillbaka till WGS84
-outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)  # Omvandla det yttre buffertområdet tillbaka till WGS84
+polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)   
+bufferedPolygonWGS84 <- st_transform(bufferedPolygon, crs = 4326)   
+outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)  
 
 plot(outerBufferAreaWGS84)
 plot(polygonDataWGS84)
 
 
-#Extrahera data
+#Extract data
 livestock_cafe <- terra::extract(rasterLayer, polygonDataWGS84, bind = TRUE)
 month_names <- names(rasterLayer) 
 
@@ -980,14 +878,13 @@ annual_mean_ndvi <- ls_in_out_melt %>%
   ungroup()
 
 
-
 # Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
 ggplot(monthly_mean_ndvi, aes(x = Month, y = Mean_NDVI_month, color = factor(id_source))) +
   geom_line() +  # Skapa en linjeplot
   geom_point() + # Lägg till punkter för varje datapunkt
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
   theme_minimal() + # Använd ett minimalt tema
-  labs(title = "The Average NDVI per Month",
+  labs(title = "The Average NDVI per Month, Main Livestock Cafe",
        x = "Month",
        y = "The average NDVI",
        color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
@@ -997,22 +894,12 @@ ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(id_sou
   geom_point() + # Lägg till punkter för varje datapunkt
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
   theme_minimal() + # Använd ett minimalt tema
-  labs(title = "NDVI on a yearly average",
+  labs(title = "NDVI on a yearly average Cheppareria, Main Livestock Cafe",
        x = "Year",
        y = "The average NDVI",
        color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
 
 
-
-# Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
-#ggplot(ls_in_out_melt, aes(x = Month, y = NDVI, color = factor(id_source))) +
- # geom_smooth(method = "loess")+# Skapa en linjeplot
-  #scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  #theme_minimal() + # Använd ett minimalt tema
-  #labs(title = "Genomsnittligt NDVI över tid",
-       #x = "Månad",
-       #y = "Genomsnittligt NDVI",
-       #color = "Källa") # Lägg till titel och namn på axlarna samt anpassa legendtitel
 
 
 
@@ -1022,10 +909,124 @@ ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(id_sou
 
 ```
 ```{r}
+
+
+# Read the polygon
+polygon_data_chepp_annex <- st_read("../Polygons/LC_Polygon_Annex.geojson")
+
+
+polygon_data_chepp_annex <- st_transform(polygon_data_chepp_annex, crs = 32633) 
+# Skapa en buffert med X meter
+bufferedPolygon_annex <- st_buffer(polygon_data_chepp_annex, dist = 100)  
+outerBufferArea_annex <- st_difference(bufferedPolygon_annex, polygon_data_chepp_annex)
+
+polygonDataWGS84_annex <- st_transform(polygon_data_chepp_annex, crs = 4326)   
+bufferedPolygonWGS84_annex<- st_transform(bufferedPolygon_annex, crs = 4326)   
+outerBufferAreaWGS84_annex<- st_transform(outerBufferArea_annex, crs = 4326)  
+
+plot(outerBufferAreaWGS84_annex)
+plot(polygonDataWGS84_annex)
+
+
+#Extract data
+livestock_cafe_annex <- terra::extract(rasterLayer, polygonDataWGS84_annex, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+outside_livestock_cafe_annex <- terra::extract(rasterLayer, outerBufferAreaWGS84_annex, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+livestock_cafe_tbl_annex <- as_tibble(livestock_cafe_annex)
+outside_livestock_cafe_tbl_annex <- as_tibble(outside_livestock_cafe_annex)
+
+livestock_cafe_tbl_annex$id_source <- 1
+outside_livestock_cafe_tbl_annex$id_source <- 0
+
+
+ls_in_out_annex = bind_rows(livestock_cafe_tbl_annex , outside_livestock_cafe_tbl_annex)
+
+
+ls_in_out_melt_annex <- pivot_longer(ls_in_out_annex, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+
+
+ls_in_out_melt_annex$Month <- as.Date(paste0(ls_in_out_melt_annex$Month, " 01"), format="%Y %m %d")
+
+# Beräkna genomsnittlig NDVI för varje månad och id_source
+monthly_mean_ndvi_annex <- ls_in_out_melt_annex%>%
+  group_by(Month, id_source) %>%
+  summarise(Mean_NDVI_month_annex = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+annual_mean_ndvi_annex <- ls_in_out_melt_annex %>%
+  mutate(Year = format(Month, "%Y")) %>% 
+  group_by(Year, id_source) %>%
+  summarise(Mean_NDVI_year_annex = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+# Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
+ggplot(monthly_mean_ndvi_annex, aes(x = Month, y = Mean_NDVI_month_annex, color = factor(id_source))) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "The Average NDVI per Month, Cheppareria Annex Livestock Cafe",
+       x = "Month",
+       y = "The average NDVI",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+ggplot(annual_mean_ndvi_annex, aes(x = Year, y = Mean_NDVI_year_annex, color = factor(id_source), group = id_source)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "NDVI on a yearly average, Cheppareria Annex Livestock Cafe",
+       x = "Year",
+       y = "The average NDVI",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+
+
+
+
+```
+```{r}
+ls_in_out_melt_lok$YearMonth <- format(ls_in_out_melt_lok$Month, "%Y-%m")
+
+# Plotta NDVI-värden för varje månad, uppdelat efter id_source
+ggplot(ls_in_out_melt_lok, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "NDVI per month",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+```
+
+```{r}
 ls_in_out_melt$YearMonth <- format(ls_in_out_melt$Month, "%Y-%m")
 
 # Plotta NDVI-värden för varje månad, uppdelat efter id_source
 ggplot(ls_in_out_melt, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "NDVI per month, Main LC",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+```
+
+
+```{r}
+ls_in_out_melt_annex$YearMonth <- format(ls_in_out_melt_annex$Month, "%Y-%m")
+
+# Plotta NDVI-värden för varje månad, uppdelat efter id_source
+ggplot(ls_in_out_melt_annex, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
   geom_boxplot() + # Skapar boxplot
   theme_minimal() + # Använder ett minimalt tema
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
@@ -1050,31 +1051,14 @@ soil.pred.DT$LC <- ifelse(soil.pred.DT$cluster %in% c(17, 18), 1, 0)
 ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
 
 
-
-
 filtered_soil.pred.DT <- soil.pred.DT %>%
   filter(depthcode=="Topsoil")
 
-glimpse(filtered_soil.pred.DT)
-glimpse(ldsf_combined)
 
 model_data <- inner_join(filtered_soil.pred.DT, ldsf_combined, by = c("ldsfid"))
 model_data <- model_data %>% mutate(LC.y=as.factor(LC.y))
 
-glimpse(model_data)
-
-
-  #rows that appear in ldsf but not in soil 
-setdiff(ldsf, soil) 
-
-  #rows that appear in soil but not ldsf 
-setdiff(soil, ldsf) 
-
-result <- setdiff(soil, ldsf)
-length(result)
-
-
-
+#glimpse(model_data)
 
 
 ```
@@ -1149,23 +1133,6 @@ print(combined_plot)
 ```
 
 
-```{r}
-library(broom.mixed)
-library(dplyr)
-
-tidy_SOC <- broom.mixed::tidy(model_SOC, effects = "fixed", conf.int = TRUE) %>%
-  mutate(Significant = ifelse(p.value < 0.05, "Significant", "Not Significant"),
-         Color = ifelse(Significant == "Significant", "#22A884", "#CC6A70"))
-
-plot_SOC <- ggplot(tidy_SOC, aes(x = term, y = estimate, color = Color)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
-  scale_color_identity() + # Använder faktiska färgvärden från 'Color' kolumnen
-  labs(title = "Soil Organic Carbon (SOC)", y = "Estimate", x = "") +
-  theme_minimal()
-
-print(plot_SOC)
-```
 
 
 ```{r}
@@ -1237,13 +1204,13 @@ print(combined_plot)
 ```{r}
 # Filter the dataset for the site "Chepareria"
 chepareria_model_data <- model_data %>%
-  filter(site == "Chepareria")
+  filter(site.x == "Chepareria")
 
 
 
-model_herb_chep <- lmer(herb_cov_total ~ LC.y + (1 | cluster), data = chepareria_model_data)
-model_viserosion_chep <- lmer(viserosion ~ LC.y + (1 | cluster), data = chepareria_model_data)
-model_predsoc_chep <- lmer(predsoc ~ LC.y + (1 | cluster), data = chepareria_model_data)
+model_herb_chep <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
+model_viserosion_chep <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
+model_predsoc_chep <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
 
 
 summary(model_herb_chep)
@@ -1269,10 +1236,36 @@ print(combined_plot_chep)
 
 
 
-```{r erosionGraph, fig.cap="Mixed effetcts model ", out.width="100%", fig.height=9}
-mod.erosion <- glmer(severeero~1+(1|site/cluster),family="binomial", data=ldsf_combined)
-summary(mod.erosion)
-coef(mod.erosion)
+```{r erosionGraph, fig.cap="Mixed effetcts model NDVI", out.width="100%", fig.height=9}
+
+library(zoo)
+library(ggeffects)
+
+ls_in_out_melt$YearMonth_ym <- as.yearmon(format(ls_in_out_melt$Month, "%Y-%m"))
+ls_in_out_melt$Time <- as.numeric(ls_in_out_melt$YearMonth_ym - min(ls_in_out_melt$YearMonth_ym))
+
+library(lme4)
+model_NDVI_interaction <- lmer(NDVI ~ id_source * Time + (1 | Month), data = ls_in_out_melt)
+
+summary(model_NDVI_interaction)
+
+
+# Skapa en ny data.frame med önskad range av 'Time' och båda värdena av 'id_source'
+new_data <- expand.grid(Time = seq(from = min(ls_in_out_melt$Time), to = max(ls_in_out_melt$Time), length.out = 100),
+                        id_source = c(0, 1))
+
+# Beräkna förutsagda NDVI-värden baserat på modellen
+new_data$Predicted_NDVI <- predict(model_NDVI_interaction, newdata = new_data, re.form = NA)
+
+ggplot(new_data, aes(x = Time, y = Predicted_NDVI, color = factor(id_source))) +
+  geom_line() +
+  labs(title = "Predicted NDVI over Time by id_source",
+       x = "Time",
+       y = "Predicted NDVI",
+       color = "id_source") +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "red"), labels = c("id_source 0", "id_source 1"))
+
 
 ```
 
@@ -1280,5 +1273,9 @@ coef(mod.erosion)
 mod.erosion.herb <- glmer(severeero~rating+(rating|cluster),family="binomial", data=herb_cover_long)
 coef(mod.erosion.herb)
 summary(mod.erosion.herb)
+
+mod.erosion <- glmer(severeero~1+(1|site/cluster),family="binomial", data=ldsf_combined)
+summary(mod.erosion)
+coef(mod.erosion)
 ```
 
