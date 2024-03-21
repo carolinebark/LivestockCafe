@@ -14,7 +14,17 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 ```
 
 ```{r libraries, paged.print=FALSE}
-
+library(terra)
+library(sf)
+library(terra)
+library(tidyverse)
+library(lubridate)
+library(sjPlot)
+library(ggplot2)
+library(cowplot) 
+library(lme4)
+library(sjPlot)
+library(patchwork)
 library(ggplot2)
 library(dplyr)
 library(leaflet)
@@ -687,8 +697,8 @@ print(g_chep)
 
 
 ```{r}
-library(terra)
-library(sf)
+
+
 
 # Replace 'path_to_your_file.tif' with the path to your .tif file
 rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
@@ -713,9 +723,6 @@ ldsf_spat <- ldsf_combined %>% st_as_sf(coords = c("longitude", "latitude"), crs
 
 ```{r}
 
-library(terra)
-library(tidyverse)
-library(lubridate)
 
 # Läs in rasterdata
 rasterLayer_lok <- rast("../Data/Field data/Maps/Lok_2020_2024.tif")
@@ -1139,9 +1146,6 @@ print(combined_plot)
 lokiriama_model_data <- model_data %>%
   filter(site.x == "Lokiriama")
 
-library(lme4)
-library(sjPlot)
-library(patchwork)
 
 model_herb_lok <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
 model_viserosion_lok<- lmer(viserosion ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
@@ -1155,9 +1159,6 @@ sjPlot::tab_model(model_herb_lok)
 sjPlot::tab_model(model_viserosion_lok)
 sjPlot::tab_model(model_predsoc_lok)
 
-library(sjPlot)
-library(ggplot2)
-library(cowplot) 
 
 # Skapa plotar
 plot_herb_lok <- plot_model(model_herb_lok, 
@@ -1278,4 +1279,216 @@ mod.erosion <- glmer(severeero~1+(1|site/cluster),family="binomial", data=ldsf_c
 summary(mod.erosion)
 coef(mod.erosion)
 ```
+
+```{r}
+
+# Läs in rasterdata
+erosion_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2020_StackedModel.tif")
+
+erosion_chepp_2021  <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2021_StackedModel.tif")
+
+erosion_chepp_2022 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2022_StackedModel.tif")
+
+erosion_chepp_2023 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2023_StackedModel.tif")
+
+erosion = c(erosion_chepp_2020, erosion_chepp_2021, erosion_chepp_2022, erosion_chepp_2023)
+
+plot(outerBufferAreaWGS84)
+plot(polygonDataWGS84)
+
+
+#Extract data
+livestock_cafe_erosion <- terra::extract(erosion, polygonDataWGS84, bind = TRUE)
+outside_livestock_cafe_erosion <- terra::extract(erosion, outerBufferAreaWGS84, bind = TRUE)
+
+livestock_cafe_erosion_tbl <- as_tibble(livestock_cafe_erosion)
+outside_livestock_cafe_erosion_tbl <- as_tibble(outside_livestock_cafe_erosion)
+
+livestock_cafe_erosion_tbl$LC <- 1
+outside_livestock_cafe_erosion_tbl$LC <- 0
+
+erosion_in_out = bind_rows(livestock_cafe_erosion_tbl, outside_livestock_cafe_erosion_tbl)
+
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "2020"
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "2021"
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "2022"
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+
+erosion_in_out_long <- pivot_longer(erosion_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "Erosion")
+
+
+annual_mean_erosion <- erosion_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_erosion, aes(x = Year, y = mean_annual_erosion, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "Erosion  on a yearly average Cheppareria, Main Livestock Cafe",
+       x = "Year",
+       y = "Likelihood of servere erosion ",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+
+# Plotta boxplott för varje år
+ggplot(erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "NDVI per month",
+       x = "Year",
+       y = "Erosion",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+
+
+
+
+```
+```{r}
+#Extract data
+annex_erosion <- terra::extract(erosion, polygonDataWGS84_annex, bind = TRUE)
+outside_annex_erosion <- terra::extract(erosion, outerBufferAreaWGS84_annex, bind = TRUE)
+
+annex_erosion_tbl <- as_tibble(annex_erosion)
+outside_annex_erosion_tbl <- as_tibble(outside_annex_erosion)
+
+annex_erosion_tbl$LC <- 1
+outside_annex_erosion_tbl$LC <- 0
+
+annex_erosion_in_out = bind_rows(annex_erosion_tbl, outside_annex_erosion_tbl)
+
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "2020"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "2021"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "2022"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+
+annex_erosion_in_out_long <- pivot_longer(annex_erosion_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "Erosion")
+
+
+annual_mean_erosion_annex <- annex_erosion_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion_annex = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_erosion_annex, aes(x = Year, y = mean_annual_erosion_annex, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "Erosion  on a yearly average Cheppareria, Annex Livestock Cafe",
+       x = "Year",
+       y = "Likelihood of servere erosion ",
+       color = "LC") 
+
+
+# Plotta boxplott för varje år
+ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "Erosion",
+       x = "Year",
+       y = "Erosion",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+
+
+
+
+```
+
+
+```{r}
+#Extract data
+lok_erosion <- terra::extract(erosion, polygonDataWGS84_lok, bind = TRUE)
+outside_lok_erosion <- terra::extract(erosion, outerBufferAreaWGS84_lok, bind = TRUE)
+
+
+
+annex_erosion_tbl <- as_tibble(annex_erosion)
+outside_annex_erosion_tbl <- as_tibble(outside_annex_erosion)
+
+annex_erosion_tbl$LC <- 1
+outside_annex_erosion_tbl$LC <- 0
+
+annex_erosion_in_out = bind_rows(annex_erosion_tbl, outside_annex_erosion_tbl)
+
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "2020"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "2021"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "2022"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+
+annex_erosion_in_out_long <- pivot_longer(annex_erosion_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "Erosion")
+
+
+annual_mean_erosion_annex <- annex_erosion_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion_annex = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_erosion_annex, aes(x = Year, y = mean_annual_erosion_annex, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "Erosion  on a yearly average Cheppareria, Annex Livestock Cafe",
+       x = "Year",
+       y = "Likelihood of servere erosion ",
+       color = "LC") 
+
+
+# Plotta boxplott för varje år
+ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "Erosion",
+       x = "Year",
+       y = "Erosion",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+
+```
+
+
+```{r}
+library(writexl)
+
+# Filtrera ldsf_combined för att få lok_chepp_filtered
+lok_chepp_filtered <- subset(ldsf_combined, site %in% c("Chepareria", "Lokiriama"))
+
+# Ange sökvägen och filnamnet där du vill spara Excel-filen för den filtrerade datan
+excel_file_path_filtered <- "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/lok_chepp_filtered.xlsx"
+
+# Ange sökvägen och filnamnet där du vill spara Excel-filen för hela datan
+excel_file_path_combined <- "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/ldsf_combined.xlsx"
+
+# Spara den filtrerade datan (lok_chepp_filtered) som en Excel-fil
+write_xlsx(lok_chepp_filtered, path = excel_file_path_filtered)
+
+# Spara hela datan (ldsf_combined) som en Excel-fil
+write_xlsx(ldsf_combined, path = excel_file_path_combined)
+
+
+```
+
 
