@@ -14,9 +14,18 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 ```
 
 ```{r libraries, paged.print=FALSE}
+library(sjPlot)
+library(ggplot2)
+library(cowplot) 
+library(patchwork)
+library(sjPlot)
+library(performance)
+library(see)
+library(lmerTest)
 library(terra)
 library(sf)
 library(terra)
+library(zoo)
 library(ggeffects)
 library(tidyverse)
 library(lubridate)
@@ -54,8 +63,6 @@ library(tidyr)
 library(RColorBrewer)
 library(Matrix)
 library(raster)
-
-
 ```
 
 
@@ -79,14 +86,9 @@ ldsf.LC <- dplyr::select(ldsf.LC, dplyr::where(~ any(!is.na(.))))
 colnames(ldsf.DT) <- tolower(colnames(ldsf.DT))
 colnames(ldsf.LC) <- tolower(colnames(ldsf.LC))
 
-
-
-
 #Rename the site names so that it matches the ldsf.DT 
 ldsf.LC$site <- gsub("Chepararia_LC", "Chepareria", ldsf.LC$site)
 ldsf.LC$site <- gsub("Lokiriama_LC", "Lokiriama", ldsf.LC$site)
-
-
 
 ldsf.LC$cluster <- ifelse(ldsf.LC$site == "Chepareria" & ldsf.LC$plot %in% c(6, 7, 8, 9, 10) & ldsf.LC$cluster == 17, 18, ldsf.LC$cluster)
 
@@ -95,8 +97,6 @@ ldsf.LC$cluster <- ifelse(ldsf.LC$site == "Chepareria" & ldsf.LC$plot %in% c(6, 
 
 
 ```{r LoadDataSummary, echo=TRUE}
-
-
 
 # Create a summary table for ldsf.DT
 plots.summary_dt <- ldsf.DT %>%
@@ -117,29 +117,18 @@ knitr::kable(plots.summary_lc, digits = 2, caption = "Table 1. Number of sampled
 ldsf.DT$DataType <- 'DT' # Marking DT rows
 ldsf.LC$DataType <- 'LC' # Marking LC rows
 
-# Lägg till ldsf.id i ldsf.LC
+# Add ldsf.id to ldsf.LC
 
 ldsf.LC <- ldsf.LC %>%
   mutate(ldsfid = paste(substr(site, 1, 4), cluster, plot, sep = "."))
 
 ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
 
-  
-
-# Visa de första raderna i det uppdaterade datasetet för att kontrollera den nya kolumnen
-#head(ldsf.LC)
-
-#ldsf.DT <- ldsf.DT%>%
-  #rename(ldsfid = `ldsfid...8`)
-
-
 #Combine ldsf.DT and ldsf.LC
 ldsf_combined <- bind_rows(
   ldsf.DT,
   ldsf.LC
 )
-
-
 
 #glimpse(ldsf.DT)
 #glimpse(ldsf.LC)
@@ -148,13 +137,28 @@ ldsf_combined <- bind_rows(
 
 
 ```
+```{r}
+ldsf_combined <- ldsf_combined %>%
+  mutate(
+ viserosion1 = recode(erosion1, "none" = 0, .default = 1),
+  viserosion2 = recode(erosion2, "none" = 0, .default = 1),
+  viserosion3 = recode(erosion3, "none" = 0, .default = 1),
+  viserosion4 = recode(erosion4, "none" = 0, .default = 1),
+  viserosion = viserosion1 + viserosion2 + viserosion3 + viserosion4,
+    severeero = ifelse(viserosion >= 3, 1, 0)
+  )
+
+ldsf_combined <- ldsf_combined %>%
+  mutate(
+herb_cov_total = herbcovrate1 + herbcovrate2 + herbcovrate3 + herbcovrate4)
+
+
+```
 
 
 
 
 ```{r leafletplotCultMgd, fig.cap="Map 1. Location of the LDSF plots and Livestock Cafe plots"}
-
-
 leaflet(ldsf_combined) %>%
   addProviderTiles(provider = "Esri.WorldImagery", group = "Satelite") %>%
   addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
@@ -183,28 +187,7 @@ leaflet(ldsf_combined) %>%
 
 ```
 
-
-
-
-Soil erosion
-
-erosion is the most widespread form of land degradation. In each sub-plot (n=4) per plot, signs of erosion are recorded and classified into None/Sheet/Rill/Gully.
-
-Based on this, a visible erosion score (viserosion) is calculated by adding the subplot visible erosion variable (0 - no erosion, 1 erosion) in all 4 subplots. A severe erosion index (severeero) is also calculated (0 - no severe erosion, 1 severe erosion), with 1 meaning that viserosion >= 3. 
-
-
 ```{r erosionCalculations}
-
-
-ldsf_combined <- ldsf_combined %>%
-  mutate(
- viserosion1 = recode(erosion1, "none" = 0, .default = 1),
-  viserosion2 = recode(erosion2, "none" = 0, .default = 1),
-  viserosion3 = recode(erosion3, "none" = 0, .default = 1),
-  viserosion4 = recode(erosion4, "none" = 0, .default = 1),
-  viserosion = viserosion1 + viserosion2 + viserosion3 + viserosion4,
-    severeero = ifelse(viserosion >= 3, 1, 0)
-  )
 
 #Calculate the mean of viserosion for the entire data set 
 mean_vis_erosion <- mean(ldsf_combined$viserosion, na.rm = TRUE)
@@ -215,7 +198,6 @@ cluster_means <- ldsf_combined %>%
   summarise(Meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
   ungroup()
 
-
 # Calculate the prevalence of severe erosion for the entire data set 
 eros.preval.cluster <- ldsf_combined %>%
   group_by(site, cluster, DataType) %>% 
@@ -225,10 +207,6 @@ eros.preval.cluster <- ldsf_combined %>%
     .groups = 'drop'
   ) %>%
   mutate(Frequencysevereerosion = severeerosionplots / Totalplots)
-
-
-
-
 
 ```
 
@@ -297,67 +275,60 @@ if (nrow(ldsf_combined_cheperaria) > 0) {
 
 
 
-
-
-
 ```
 
 
-
-
 ```{r}
-library(tidyverse)
 
-# Count the percentage of erosiontype, includeing 'none'
-ldsf_long_with_none <- ldsf_combined_cheperaria %>%
+
+# Data for Chepareria site
+ldsf_long_with_none_che <- ldsf_combined_cheperaria %>%
   pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
   count(cluster, erosionValue) %>%
   group_by(cluster) %>%
   mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
-  ungroup()
-
-# Filter the none from the plot
-ldsf_long_for_plot <- ldsf_long_with_none %>%
+  ungroup() %>%
   filter(erosionValue != "none")
 
+ldsf_combined_lokiriama <- ldsf_combined %>%
+  filter(site == "Lokiriama")
 
-ldsf_erosion_plot_with_percent <- ggplot(ldsf_long_for_plot, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
-  geom_bar(stat = "identity", position = "stack") + 
-  scale_y_continuous(labels = scales::percent_format()) +
-  labs(x = "cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
-  theme_minimal() +
-  scale_fill_brewer(palette = "Set3") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-
-print(ldsf_erosion_plot_with_percent)
-
-
-```
-```{r}
-
+# Data for Lokiriama site
 ldsf_long_with_none_lok <- ldsf_combined_lokiriama %>%
   pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
   count(cluster, erosionValue) %>%
   group_by(cluster) %>%
   mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
-  ungroup()
-
-ldsf_long_for_plot_lok <- ldsf_long_with_none_lok %>%
+  ungroup() %>%
   filter(erosionValue != "none")
 
-ldsf_erosion_plot_with_percent_lok <- ggplot(ldsf_long_for_plot_lok, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
+# Plot for Chepareria site
+ldsf_erosion_plot_with_percent_che <- ggplot(ldsf_long_with_none_che, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
   geom_bar(stat = "identity", position = "stack") + 
   scale_y_continuous(labels = scales::percent_format()) +
-  labs(x = "cluster", y = "Procent av erosion", fill = "erosionstyp") +
+  labs(x = "Cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
   theme_minimal() +
   scale_fill_brewer(palette = "Set3") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Chepareria Site")
 
+# Plot for Lokiriama site
+ldsf_erosion_plot_with_percent_lok <- ggplot(ldsf_long_with_none_lok, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
+  geom_bar(stat = "identity", position = "stack") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = "Cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Lokiriama Site")
 
-print(ldsf_erosion_plot_with_percent_lok)
+# Combine both plots
+multiplot <- cowplot::plot_grid(ldsf_erosion_plot_with_percent_che, ldsf_erosion_plot_with_percent_lok, ncol = 2)
+
+print(multiplot)
 
 ```
+
 
 
 ```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 7, 8 and 17 Chepp", out.width="100%", fig.height=9}
@@ -379,7 +350,7 @@ cluster_means_specific <- ldsf_specific_clusters_chepp%>%
 
 # plot
 if (nrow(ldsf_specific_clusters_chepp) > 0) {
-  g <- ldsf_specific_clusters %>%
+  g <- ldsf_specific_clusters_chepp %>%
     ggplot(aes(x = viserosion)) +
     geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
     facet_wrap(~ cluster, scales = "free_y") +
@@ -397,7 +368,6 @@ if (nrow(ldsf_specific_clusters_chepp) > 0) {
 
 ```
 ```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 6,7, 10 and 17 Lokiriama", out.width="100%", fig.height=9}
-
 
 # Filtrera för att endast inkludera site Chepareria och Lokiriama
 ldsf_combined_lokiriama <- ldsf_combined %>%
@@ -435,48 +405,18 @@ ggsave(file = "../Images/erosionPrevalencePoissonChepareriaclusters7_8_17.jpeg",
        dpi = 600)
 
 ```
-```{r erosionGraph, fig.cap="Semivariagram viserosion, the whole data set", out.width="100%", fig.height=9}
-
-
-# Skapa SpatialPointsDataFrame för hela datasetet
-ldsf_combined_spatial <- ldsf_combined
-coordinates(ldsf_combined_spatial) <- ~longitude + latitude
-proj4string(ldsf_combined_spatial) <- CRS("+proj=longlat +datum=WGS84")
-
-# Skapa SpatialPointsDataFrame för Chepareria
-ldsf_combined_cheperaria_spatial <- ldsf_combined %>%
-  filter(site == "Chepareria")
-
-coordinates(ldsf_combined_cheperaria_spatial) <- ~longitude + latitude
-proj4string(ldsf_combined_cheperaria_spatial) <- CRS("+proj=longlat +datum=WGS84")
-
-# Beräkna semivariogram för hela datasetet
-viserosion_variogram_total <- variogram(viserosion~1, data = ldsf_combined_spatial)
-
-# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna
-# Exempel: vgm(nugget, model type, range, sill)
-fit_total <- fit.variogram(viserosion_variogram_total, model = vgm(1, "Sph", 1, 1))
-
-# plotta både de beräknade punkterna och den anpassade modellen
-plot(viserosion_variogram_total, model = fit_total, main = "Semivariogram for viserosion - Whole Dataset",
-     pch = 20, col = "#FF5733", cex = 2)
-
-
-
-```
-
 
 ```{r erosionGraph, fig.cap="Semivariagram viserosion, Cheppeirera", out.width="100%", fig.height=9}
 
-# Beräkna semivariogram för Chepareria
-viserosion_variogram_cheperaria <- variogram(viserosion~1, data = ldsf_combined_cheperaria_spatial)
-
-# Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna för Chepareria
-fit_cheperaria <- fit.variogram(viserosion_variogram_cheperaria, model = vgm(1, "Sph", 1, 1))
-
-# plotta både de beräknade punkterna och den anpassade modellen för Chepareria
-plot(viserosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariogram for viserosion in Chepareria",
-     pch = 20, col = "#FF5733", cex = 2)
+# # Beräkna semivariogram för Chepareria
+# viserosion_variogram_cheperaria <- variogram(viserosion~1, data = ldsf_combined_cheperaria_spatial)
+# 
+# # Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna för Chepareria
+# fit_cheperaria <- fit.variogram(viserosion_variogram_cheperaria, model = vgm(1, "Sph", 1, 1))
+# 
+# # plotta både de beräknade punkterna och den anpassade modellen för Chepareria
+# plot(viserosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariogram for viserosion in Chepareria",
+#      pch = 20, col = "#FF5733", cex = 2)
 
 
 ```
@@ -488,22 +428,22 @@ plot(viserosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariog
 
 
 
-ldsf_combined_lokiriama_spatial <- ldsf_combined_lokiriama
-
-
-coordinates(ldsf_combined_lokiriama_spatial) <- c("longitude", "latitude")
-
-
-proj4string(ldsf_combined_lokiriama_spatial) <- CRS("+proj=longlat +datum=WGS84")
-
-
-viserosion_variogram_lok <- variogram(viserosion ~ 1, data = ldsf_combined_lokiriama_spatial)
-
-
-fit_lok <- fit.variogram(viserosion_variogram_lok, model = vgm(1, "Sph", 1, 1))
-
-plot(viserosion_variogram_lok, model = fit_lok, main = "Semivariogram for viserosion in Lokiriama",
-     pch = 20, col = "#FF5733", cex = 2)
+# ldsf_combined_lokiriama_spatial <- ldsf_combined_lokiriama
+# 
+# 
+# coordinates(ldsf_combined_lokiriama_spatial) <- c("longitude", "latitude")
+# 
+# 
+# proj4string(ldsf_combined_lokiriama_spatial) <- CRS("+proj=longlat +datum=WGS84")
+# 
+# 
+# viserosion_variogram_lok <- variogram(viserosion ~ 1, data = ldsf_combined_lokiriama_spatial)
+# 
+# 
+# fit_lok <- fit.variogram(viserosion_variogram_lok, model = vgm(1, "Sph", 1, 1))
+# 
+# plot(viserosion_variogram_lok, model = fit_lok, main = "Semivariogram for viserosion in Lokiriama",
+#      pch = 20, col = "#FF5733", cex = 2)
 
 
 ```
@@ -562,10 +502,9 @@ leaflet() %>%
 
 library(data.table)
 
-# Konvertera ldsf_combined till data.table
+# Convert ldsf_combined to data.table
 setDT(ldsf_combined)
 
-# Använd nu melt från data.table på det omvandlade objektet
 melt.DT.herb <- melt(ldsf_combined,
                      id.vars = c("site", "cluster", "plot"),
                      measure.vars = c("herbcovrate1","herbcovrate2","herbcovrate3", "herbcovrate4"))
@@ -577,7 +516,7 @@ melt.DT.herb[, rating := ifelse(value==0, "absent",
                                              ifelse(value==3, "15-40",
                                                     ifelse(value==4, "40-65", ">65")))))]
 
-# Konvertera rating till factor med angivna nivåer
+# Convert rating to factor
 melt.DT.herb[, rating := factor(rating, levels = c("absent", "<4", "4-15", "15-40", "40-65", ">65"))]
 
 DT.herb.site.cluster <- melt.DT.herb %>%
@@ -625,41 +564,30 @@ DT.herb.site.cluster %>%
   theme_gray(base_size=10) +
   facet_wrap(~cluster) 
 
-
-
-
 ```
 
 
 
 ```{r loadsoildata, warning=FALSE, include=FALSE}
 
-# Läs in och förbehandla soil.pred.DT
-# Läs in och förbehandla soil.pred.DT
 
 soil.pred.DT <- read.csv("../Data/Field data/ldsf_mirpred_soilvars_Dec2022.csv", stringsAsFactors = TRUE) %>%
   mutate(ldsfID = as.character(ldsfID))
 
-# Omvandla alla kolumnnamn till små bokstäver
+# Rename to small letters
 colnames(soil.pred.DT) <- tolower(colnames(soil.pred.DT))
 
-#Filtrera data baserat på kolumnen "site"
+soil.pred.DT$cluster <- ifelse(soil.pred.DT$site == "Chepareria" & soil.pred.DT$plot %in% c(6, 7, 8, 9, 10) & soil.pred.DT$cluster == 17, 18, soil.pred.DT$cluster)
+
+
+#Filter data set based on "site"
 soil.pred.DT <- soil.pred.DT %>%
   filter(site != "Kalama", depthcode != "")
 
+# glimpse(soil.pred.DT)
+# glimpse(ldsf_combined)
 
-glimpse(soil.pred.DT)
-
-glimpse(ldsf_combined)
-
-
-#combine ldsf
-
-ldsf.soil.pred.DT<- dplyr::left_join(soil.pred.DT, ldsf.DT, by = "ldsfid" )
-
-setdiff(ldsf.DT$ldsfid,soil.pred.DT$ldsfid)  
-
-setdiff(soil.pred.DT$ldsfID, ldsf.DT$ldsfid) 
+ldsf.soil.pred.DT<- dplyr::left_join(soil.pred.DT, ldsf_combined, by = "ldsfid")
 
 ```
 
@@ -674,8 +602,6 @@ chep_data_soil <- filtrerat_dataset_soil  %>%
   filter(site.x == "Chepareria")
 
 chep_data_soil$cluster.x <- ifelse(chep_data_soil$plot.x %in% c(6, 7, 8, 9, 10) & chep_data_soil$cluster.x == 17, 18, chep_data_soil$cluster.x)
-
-
 
 g_lok<- ggplot(lokiriama_data_soil, aes(x = factor(cluster.x), y = predsoc)) +
   geom_boxplot() +
@@ -699,353 +625,7 @@ print(g_chep)
 ```
 
 
-
-
 ```{r}
-
-#  Change coordinate system, in order to buffer in meters
-polygon_lok<- st_transform(polygon_lok, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
-
-
-# Skapa en första buffert som representerar mellanrummet, t.ex., 10 meter ut från polygonen
-initialBuffer_lok <- st_buffer(polygon_lok, dist = 10)
-
-#Buffert utanför glappet 
-extendedBuffer_lok <- st_buffer(initialBuffer_lok, dist = 200)
-
-# Skapa yttre buffertområdet genom att subtrahera initialBuffer_lok från extendedBuffer_lok
-outerBufferArea_lok <- st_difference(extendedBuffer_lok, initialBuffer_lok)
-
-# Ändra tillbaka till WGS84
-polygonDataWGS84_lok <- st_transform(polygon_lok, crs = 4326)
-outerBufferAreaWGS84_lok <- st_transform(outerBufferArea_lok, crs = 4326)
-
-# # Plot polygon
-# plot(st_geometry(polygonDataWGS84_lok), main = "Polygon med with buffert", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
-# #Add the buffer to plot
-# plot(st_geometry(outerBufferAreaWGS84_lok), col = "lightgreen", add = TRUE)
-
-
-#Extract data
-livestock_cafe_lok <- terra::extract(rasterLayer_lok, polygonDataWGS84_lok, bind = TRUE)
-month_names <- names(rasterLayer_lok) 
-
-#plot(rasterLayer_lok["2020 05"])
-#plot(crop(rasterLayer_lok["2020 06"], outerBufferAreaWGS84_lok))
-#plot(polygonDataWGS84_lok$geometry, add=TRUE)
-
-outside_livestock_cafe_lok <- terra::extract(rasterLayer_lok, outerBufferAreaWGS84_lok, bind = TRUE)
-month_names <- names(rasterLayer_lok) 
-
-
-livestock_cafe_tbl_lok <- as_tibble(livestock_cafe_lok)
-outside_livestock_cafe_tbl_lok <- as_tibble(outside_livestock_cafe_lok)
-
-livestock_cafe_tbl_lok$LC<- 1
-outside_livestock_cafe_tbl_lok$LC <- 0
-
-ls_in_out_lok= bind_rows(livestock_cafe_tbl_lok , outside_livestock_cafe_tbl_lok)
-ls_in_out_melt_lok <- pivot_longer(ls_in_out_lok, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
-ls_in_out_melt_lok$Month <- as.Date(paste0(ls_in_out_melt_lok$Month, " 01"), format="%Y %m %d")
-
-
-# Count NA per month and LC
-prop_na_per_month_lc <- ls_in_out_melt_lok %>%
-  group_by(Month, LC) %>%
-  summarise(Prop_NA = mean(is.na(NDVI))) %>%
-  ungroup()
-
-#Filter just the months where NA is <= 70%, for each LC
-valid_months_lc <- prop_na_per_month_lc %>%
-  filter(Prop_NA <= 0.7) %>%
-  dplyr::select(Month, LC)
-
-
-# Monthly average
-monthly_mean_ndvi_lok <- ls_in_out_melt_lok %>%
-  group_by(Month, LC) %>%
-  summarise(Mean_NDVI_month_lok = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-#Yearly
-annual_mean_ndvi_lok <- ls_in_out_melt_lok %>%
-  mutate(Year = format(Month, "%Y")) %>% # Extrahera året från 'Month'
-  group_by(Year, LC) %>%
-  summarise(Mean_NDVI_year_lok = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-
-# Just plot months where less than 70% of pixels are NA
-plot_data <- monthly_mean_ndvi_lok %>%
-  inner_join(valid_months_lc, by = c("Month", "LC"))
-
-# Plottning
-ggplot(plot_data, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje LC-värde
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "Monthly average NDVI (filtered)",
-       x = "Månad",
-       y = "Genomsnittlig NDVI",
-       color = "LC")
-
-# Plot monthly
-ggplot(monthly_mean_ndvi_lok, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "The Average NDVI per Month, Lokiriama",
-       x = "Month",
-       y = "The average NDVI",
-       color = "LC") 
-
-# Plot yearly
-ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "NDVI on a yearly average, Lokiriama",
-       x = "Year",
-       y = "The average NDVI",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
-
-
-```
-
-```{r}
-
-# Replace 'path_to_your_file.tif' with the path to your .tif file
-rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
-
-# Read the polygon
-polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
-#raster_df <- as.data.frame(rasterLayer, xy=TRUE)
-
-polygon_data_chepp_main <- st_transform(polygon_data_chepp_main, crs = 32633) 
-
-# Create buffert that will make out the space between the polygon and the "outside"
-initialBuffer <- st_buffer(polygon_data_chepp_main, dist = 10)
-
-extendedBuffer <- st_buffer(initialBuffer, dist = 100)
-
-# Create the "outside buffert by taking the diffrence
-outerBufferArea <- st_difference(extendedBuffer, initialBuffer)
-
-# Back to  WGS84 
-polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)
-outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)
-
-# # Plot the polygon and the buffert
-#plot(st_geometry(polygonDataWGS84), main = "Polygon with buffert and space in between", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
- #plot(st_geometry(outerBufferAreaWGS84), add = TRUE, col = "lightgreen")
- 
-
-#Extract data
-livestock_cafe <- terra::extract(rasterLayer, polygonDataWGS84, bind = TRUE)
-month_names <- names(rasterLayer) 
-
-
-outside_livestock_cafe <- terra::extract(rasterLayer, outerBufferAreaWGS84, bind = TRUE)
-month_names <- names(rasterLayer) 
-
-livestock_cafe_tbl <- as_tibble(livestock_cafe)
-outside_livestock_cafe_tbl <- as_tibble(outside_livestock_cafe)
-
-livestock_cafe_tbl$id_source <- 1
-outside_livestock_cafe_tbl$id_source <- 0
-
-
-ls_in_out = bind_rows(livestock_cafe_tbl , outside_livestock_cafe_tbl)
-
-
-ls_in_out_melt <- pivot_longer(ls_in_out, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
-
-
-ls_in_out_melt$Month <- as.Date(paste0(ls_in_out_melt$Month, " 01"), format="%Y %m %d")
-
-# Beräkna genomsnittlig NDVI för varje månad och id_source
-monthly_mean_ndvi <- ls_in_out_melt %>%
-  group_by(Month, id_source) %>%
-  summarise(Mean_NDVI_month = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-annual_mean_ndvi <- ls_in_out_melt %>%
-  mutate(Year = format(Month, "%Y")) %>% # Extrahera året från 'Month'
-  group_by(Year, id_source) %>%
-  summarise(Mean_NDVI_year = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-
-# Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
-ggplot(monthly_mean_ndvi, aes(x = Month, y = Mean_NDVI_month, color = factor(id_source))) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "The Average NDVI per Month, Main Livestock Cafe",
-       x = "Month",
-       y = "The average NDVI",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
-ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(id_source), group = id_source)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "NDVI on a yearly average Cheppareria, Main Livestock Cafe",
-       x = "Year",
-       y = "The average NDVI",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
-
-
-
-
-
-
-
-
-```
-```{r}
-
-
-# Read the polygon
-polygon_data_chepp_annex <- st_read("../Polygons/LC_Polygon_Annex.geojson")
-
-
-initialBuffer_annex <- st_buffer(polygon_data_chepp_annex, dist = 10)
-extendedBuffer_annex <- st_buffer(initialBuffer_annex, dist = 100)
-outerBufferArea_annex <- st_difference(extendedBuffer_annex, initialBuffer_annex)
-polygonDataWGS84_annex <- st_transform(polygon_data_chepp_annex, crs = 4326)   
-outerBufferAreaWGS84_annex <- st_transform(outerBufferArea_annex, crs = 4326)  
-
-# Plot
-plot(st_geometry(polygonDataWGS84_annex), col = "lightblue", main = "Polygon och and outer buffer with space in between", xlab = "Longitude", ylab = "Latitude")
-plot(st_geometry(outerBufferAreaWGS84_annex), add = TRUE, col = "lightgreen")
-
-
-#Extract data
-livestock_cafe_annex <- terra::extract(rasterLayer, polygonDataWGS84_annex, bind = TRUE)
-month_names <- names(rasterLayer) 
-
-outside_livestock_cafe_annex <- terra::extract(rasterLayer, outerBufferAreaWGS84_annex, bind = TRUE)
-month_names <- names(rasterLayer) 
-
-livestock_cafe_tbl_annex <- as_tibble(livestock_cafe_annex)
-outside_livestock_cafe_tbl_annex <- as_tibble(outside_livestock_cafe_annex)
-
-livestock_cafe_tbl_annex$id_source <- 1
-outside_livestock_cafe_tbl_annex$id_source <- 0
-
-
-ls_in_out_annex = bind_rows(livestock_cafe_tbl_annex , outside_livestock_cafe_tbl_annex)
-
-
-ls_in_out_melt_annex <- pivot_longer(ls_in_out_annex, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
-
-
-ls_in_out_melt_annex$Month <- as.Date(paste0(ls_in_out_melt_annex$Month, " 01"), format="%Y %m %d")
-
-# Beräkna genomsnittlig NDVI för varje månad och id_source
-monthly_mean_ndvi_annex <- ls_in_out_melt_annex%>%
-  group_by(Month, id_source) %>%
-  summarise(Mean_NDVI_month_annex = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-annual_mean_ndvi_annex <- ls_in_out_melt_annex %>%
-  mutate(Year = format(Month, "%Y")) %>% 
-  group_by(Year, id_source) %>%
-  summarise(Mean_NDVI_year_annex = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-
-# Plotta det genomsnittliga NDVI-värdet per månad med olika färger för id_source
-ggplot(monthly_mean_ndvi_annex, aes(x = Month, y = Mean_NDVI_month_annex, color = factor(id_source))) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "The Average NDVI per Month, Cheppareria Annex Livestock Cafe",
-       x = "Month",
-       y = "The average NDVI",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
-ggplot(annual_mean_ndvi_annex, aes(x = Year, y = Mean_NDVI_year_annex, color = factor(id_source), group = id_source)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "NDVI on a yearly average, Cheppareria Annex Livestock Cafe",
-       x = "Year",
-       y = "The average NDVI",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
-
-
-
-
-```
-```{r}
-ls_in_out_melt_lok$YearMonth <- format(ls_in_out_melt_lok$Month, "%Y-%m")
-
-# Plotta NDVI-värden för varje månad, uppdelat efter id_source
-ggplot(ls_in_out_melt_lok, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
-  labs(title = "NDVI per month",
-       x = "Month",
-       y = "NDVI",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
-```
-
-```{r}
-ls_in_out_melt$YearMonth <- format(ls_in_out_melt$Month, "%Y-%m")
-
-# Plotta NDVI-värden för varje månad, uppdelat efter id_source
-ggplot(ls_in_out_melt, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
-  labs(title = "NDVI per month, Main LC",
-       x = "Month",
-       y = "NDVI",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
-```
-
-
-```{r}
-ls_in_out_melt_annex$YearMonth <- format(ls_in_out_melt_annex$Month, "%Y-%m")
-
-# Plotta NDVI-värden för varje månad, uppdelat efter id_source
-ggplot(ls_in_out_melt_annex, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
-  labs(title = "NDVI per month",
-       x = "Month",
-       y = "NDVI",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
-```
-
-
-```{r}
-
-
-ldsf_combined <- ldsf_combined %>%
-  mutate(
-herb_cov_total = herbcovrate1 + herbcovrate2 + herbcovrate3 + herbcovrate4)
-
 
 soil.pred.DT$LC <- ifelse(soil.pred.DT$cluster %in% c(17, 18), 1, 0)
 
@@ -1054,29 +634,22 @@ filtered_soil.pred.DT <- soil.pred.DT %>%
 
 
 model_data <- inner_join(filtered_soil.pred.DT, ldsf_combined, by = c("ldsfid"))
-model_data <- model_data %>% mutate(LC.y=as.factor(LC.y))
+model_data <- model_data %>% mutate(LC=as.factor(LC))
 
 #glimpse(model_data)
-
 
 ```
 
 
-
 ```{r}
-library(sjPlot)
-library(performance)
-library(see)
-library(lmerTest)
 
-
-model_SOC <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = model_data)
+model_SOC <- lmer(predsoc ~ LC + (1 | cluster.x), data = model_data)
 summary(model_SOC)
 
-model_herb_cov <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = model_data)
+model_herb_cov <- lmer(herb_cov_total ~ LC + (1 | cluster.x), data = model_data)
 summary(model_herb_cov)
 
-model_erosion <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = model_data)
+model_erosion <- lmer(viserosion ~ LC + (1 | cluster.x), data = model_data)
 summary(model_erosion)
 
 sjPlot::tab_model(model_SOC)
@@ -1085,15 +658,9 @@ sjPlot::tab_model(model_erosion)
 
 performance::check_model(model_SOC)
 
-
 ```
-```{r}
-library(sjPlot)
-library(ggplot2)
-library(cowplot) 
-library(patchwork)
 
-# Skapa plotar
+```{r}
 plot_herb_all_clusters <- plot_model(model_herb_cov, 
                             type = "est",
                             transform = NULL,
@@ -1131,16 +698,14 @@ print(combined_plot)
 ```
 
 
-
-
 ```{r}
 lokiriama_model_data <- model_data %>%
   filter(site.x == "Lokiriama")
 
 
-model_herb_lok <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
-model_viserosion_lok<- lmer(viserosion ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
-model_predsoc_lok <- lmer(predsoc~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
+model_herb_lok <- lmer(herb_cov_total ~ LC+ (1 | cluster.x), data = lokiriama_model_data)
+model_viserosion_lok<- lmer(viserosion ~ LC + (1 | cluster.x), data = lokiriama_model_data)
+model_predsoc_lok <- lmer(predsoc~ LC + (1 | cluster.x), data = lokiriama_model_data)
 
 summary(model_herb_lok)
 summary(model_viserosion_lok)
@@ -1194,13 +759,12 @@ print(combined_plot)
 
 ```
 ```{r}
-# Filter the dataset for the site "Chepareria"
 chepareria_model_data <- model_data %>%
   filter(site.x == "Chepareria")
 
-model_herb_chep <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
-model_viserosion_chep <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
-model_predsoc_chep <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
+model_herb_chep <- lmer(herb_cov_total ~ LC + (1 | cluster.x), data = chepareria_model_data)
+model_viserosion_chep <- lmer(viserosion ~ LC + (1 | cluster.x), data = chepareria_model_data)
+model_predsoc_chep <- lmer(predsoc ~ LC + (1 | cluster.x), data = chepareria_model_data)
 
 
 summary(model_herb_chep)
@@ -1223,12 +787,313 @@ combined_plot_chep <- plot_herb_chep + plot_viserosion_chep + plot_predsoc_chep 
 print(combined_plot_chep)
 
 ```
+```{r}
 
+#  Change coordinate system, in order to buffer in meters
+polygon_lok<- st_transform(polygon_lok, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
+
+# Create the gap between polygon and outside
+initialBuffer_lok <- st_buffer(polygon_lok, dist = 10)
+
+#Set the outside buffer size (remember to add the size of the gap)
+extendedBuffer_lok <- st_buffer(initialBuffer_lok, dist = 200)
+
+# Create outside buffer by taking the diffrence between the gap and the above
+outerBufferArea_lok <- st_difference(extendedBuffer_lok, initialBuffer_lok)
+
+# Change back to WGS84
+polygonDataWGS84_lok <- st_transform(polygon_lok, crs = 4326)
+outerBufferAreaWGS84_lok <- st_transform(outerBufferArea_lok, crs = 4326)
+
+# # Plot polygon
+# plot(st_geometry(polygonDataWGS84_lok), main = "Polygon med with buffert", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
+# #Add the buffer to plot
+# plot(st_geometry(outerBufferAreaWGS84_lok), col = "lightgreen", add = TRUE)
+
+#Extract data
+livestock_cafe_lok <- terra::extract(rasterLayer_lok, polygonDataWGS84_lok, bind = TRUE)
+month_names <- names(rasterLayer_lok) 
+
+outside_livestock_cafe_lok <- terra::extract(rasterLayer_lok, outerBufferAreaWGS84_lok, bind = TRUE)
+month_names <- names(rasterLayer_lok) 
+
+#plot(rasterLayer_lok["2020 05"])
+#plot(crop(rasterLayer_lok["2020 06"], outerBufferAreaWGS84_lok))
+#plot(polygonDataWGS84_lok$geometry, add=TRUE)
+
+livestock_cafe_tbl_lok <- as_tibble(livestock_cafe_lok)
+outside_livestock_cafe_tbl_lok <- as_tibble(outside_livestock_cafe_lok)
+
+
+#Add dummie-column where Livestock cafe=1 Non Livetosck cafe=0
+livestock_cafe_tbl_lok$LC<- 1
+outside_livestock_cafe_tbl_lok$LC <- 0
+
+#Combine to one data-set
+ls_in_out_lok= bind_rows(livestock_cafe_tbl_lok , outside_livestock_cafe_tbl_lok)
+ls_in_out_melt_lok <- pivot_longer(ls_in_out_lok, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+ls_in_out_melt_lok$Month <- as.Date(paste0(ls_in_out_melt_lok$Month, " 01"), format="%Y %m %d")
+
+# Count NA per month and LC
+prop_na_per_month_lc <- ls_in_out_melt_lok %>%
+  group_by(Month, LC) %>%
+  summarise(Prop_NA = mean(is.na(NDVI))) %>%
+  ungroup()
+
+#Filter just the months where NA is <= 70%, for each LC
+valid_months_lc <- prop_na_per_month_lc %>%
+  filter(Prop_NA <= 0.7) %>%
+  dplyr::select(Month, LC)
+
+# Calculate monthly average
+monthly_mean_ndvi_lok <- ls_in_out_melt_lok %>%
+  group_by(Month, LC) %>%
+  summarise(Mean_NDVI_month_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+#Calculate yearly average
+annual_mean_ndvi_lok <- ls_in_out_melt_lok %>%
+  mutate(Year = format(Month, "%Y")) %>% # Extrahera året från 'Month'
+  group_by(Year, LC) %>%
+  summarise(Mean_NDVI_year_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Just plot months where less than 70% of pixels are NA
+plot_data <- monthly_mean_ndvi_lok %>%
+  inner_join(valid_months_lc, by = c("Month", "LC"))
+
+# Plot just the months where less than 70% of pixels are NA
+ggplot(plot_data, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje LC-värde
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "Monthly average NDVI (filtered)",
+       x = "Månad",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+# # Plot monthly, with all months
+# ggplot(monthly_mean_ndvi_lok, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
+#   geom_line() +  # Skapa en linjeplot
+#   geom_point() + # Lägg till punkter för varje datapunkt
+#   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+#   theme_minimal() + # Använd ett minimalt tema
+#   labs(title = "The Average NDVI per Month, Lokiriama",
+#        x = "Month",
+#        y = "The average NDVI",
+#        color = "LC") 
+
+# Plot yearly
+ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "NDVI on a yearly average, Lokiriama",
+       x = "Year",
+       y = "The average NDVI",
+       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
+
+
+
+```
+
+```{r}
+
+rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
+polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
+#raster_df <- as.data.frame(rasterLayer, xy=TRUE)
+
+polygon_data_chepp_main <- st_transform(polygon_data_chepp_main, crs = 32633) 
+
+# Create buffert that will make out the space between the polygon and the "outside"
+initialBuffer <- st_buffer(polygon_data_chepp_main, dist = 10)
+extendedBuffer <- st_buffer(initialBuffer, dist = 100)
+
+# Create the "outside buffert by taking the difference
+outerBufferArea <- st_difference(extendedBuffer, initialBuffer)
+
+# Back to  WGS84 
+polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)
+outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)
+
+# # Plot the polygon and the buffert
+#plot(st_geometry(polygonDataWGS84), main = "Polygon with buffert and space in between", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
+ #plot(st_geometry(outerBufferAreaWGS84), add = TRUE, col = "lightgreen")
+
+#Extract data
+livestock_cafe <- terra::extract(rasterLayer, polygonDataWGS84, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+outside_livestock_cafe <- terra::extract(rasterLayer, outerBufferAreaWGS84, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+livestock_cafe_tbl <- as_tibble(livestock_cafe)
+outside_livestock_cafe_tbl <- as_tibble(outside_livestock_cafe)
+
+livestock_cafe_tbl$id_source <- 1
+outside_livestock_cafe_tbl$id_source <- 0
+
+
+ls_in_out = bind_rows(livestock_cafe_tbl , outside_livestock_cafe_tbl)
+
+ls_in_out_melt <- pivot_longer(ls_in_out, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+
+ls_in_out_melt$Month <- as.Date(paste0(ls_in_out_melt$Month, " 01"), format="%Y %m %d")
+
+# Calculate mean for each month and inside and outside LC
+monthly_mean_ndvi <- ls_in_out_melt %>%
+  group_by(Month, id_source) %>%
+  summarise(Mean_NDVI_month = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Calculate mean for each year and inside and outside LC
+annual_mean_ndvi <- ls_in_out_melt %>%
+  mutate(Year = format(Month, "%Y")) %>%
+  group_by(Year, id_source) %>%
+  summarise(Mean_NDVI_year = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(monthly_mean_ndvi, aes(x = Month, y = Mean_NDVI_month, color = factor(id_source))) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
+  labs(title = "Monthly Average NDVI, Main Livestock Cafe",
+       x = "Month",
+       y = "Average NDVI",
+       color = "LC") 
+
+ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(id_source), group = id_source)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
+  labs(title = "Yearly Average NDVI, Main Livestock Cafe",
+       x = "Year",
+       y = "The average NDVI",
+       color = "LC") 
+
+```
+```{r}
+
+polygon_data_chepp_annex <- st_read("../Polygons/LC_Polygon_Annex.geojson")
+
+initialBuffer_annex <- st_buffer(polygon_data_chepp_annex, dist = 10)
+extendedBuffer_annex <- st_buffer(initialBuffer_annex, dist = 100)
+outerBufferArea_annex <- st_difference(extendedBuffer_annex, initialBuffer_annex)
+polygonDataWGS84_annex <- st_transform(polygon_data_chepp_annex, crs = 4326)   
+outerBufferAreaWGS84_annex <- st_transform(outerBufferArea_annex, crs = 4326)  
+
+# # Plot
+# plot(st_geometry(polygonDataWGS84_annex), col = "lightblue", main = "Polygon och and outer buffer with space in between", xlab = "Longitude", ylab = "Latitude")
+# plot(st_geometry(outerBufferAreaWGS84_annex), add = TRUE, col = "lightgreen")
+
+livestock_cafe_annex <- terra::extract(rasterLayer, polygonDataWGS84_annex, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+outside_livestock_cafe_annex <- terra::extract(rasterLayer, outerBufferAreaWGS84_annex, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+livestock_cafe_tbl_annex <- as_tibble(livestock_cafe_annex)
+outside_livestock_cafe_tbl_annex <- as_tibble(outside_livestock_cafe_annex)
+
+livestock_cafe_tbl_annex$id_source <- 1
+outside_livestock_cafe_tbl_annex$id_source <- 0
+
+
+ls_in_out_annex = bind_rows(livestock_cafe_tbl_annex , outside_livestock_cafe_tbl_annex)
+ls_in_out_melt_annex <- pivot_longer(ls_in_out_annex, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+
+
+ls_in_out_melt_annex$Month <- as.Date(paste0(ls_in_out_melt_annex$Month, " 01"), format="%Y %m %d")
+
+monthly_mean_ndvi_annex <- ls_in_out_melt_annex%>%
+  group_by(Month, id_source) %>%
+  summarise(Mean_NDVI_month_annex = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+annual_mean_ndvi_annex <- ls_in_out_melt_annex %>%
+  mutate(Year = format(Month, "%Y")) %>% 
+  group_by(Year, id_source) %>%
+  summarise(Mean_NDVI_year_annex = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+
+ggplot(monthly_mean_ndvi_annex, aes(x = Month, y = Mean_NDVI_month_annex, color = factor(id_source))) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
+  labs(title = "Monthly Average NDVI, Annex Livestock Cafe",
+       x = "Month",
+       y = "The average NDVI",
+       color = "LC") 
+
+ggplot(annual_mean_ndvi_annex, aes(x = Year, y = Mean_NDVI_year_annex, color = factor(id_source), group = id_source)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
+  labs(title = "Yearly Average NDVI, Annex Livestock Cafe",
+       x = "Year",
+       y = "The average NDVI",
+       color = "LC")
+
+
+```
+```{r}
+ls_in_out_melt_lok$YearMonth <- format(ls_in_out_melt_lok$Month, "%Y-%m")
+
+ggplot(ls_in_out_melt_lok, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
+  geom_boxplot() +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "NDVI per month",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
+
+```
+
+```{r}
+ls_in_out_melt$YearMonth <- format(ls_in_out_melt$Month, "%Y-%m")
+
+ggplot(ls_in_out_melt, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "NDVI per month, Main LC",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
+
+```
+
+
+```{r}
+ls_in_out_melt_annex$YearMonth <- format(ls_in_out_melt_annex$Month, "%Y-%m")
+
+ggplot(ls_in_out_melt_annex, aes(x = YearMonth, y = NDVI, fill = factor(id_source))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "NDVI per month, Annex LC",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
+
+```
 
 
 ```{r}
 
-# Läs in rasterdata
 erosion_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2020_StackedModel.tif")
 
 erosion_chepp_2021  <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2021_StackedModel.tif")
@@ -1339,29 +1204,26 @@ annual_mean_erosion_annex <- annex_erosion_in_out_long %>%
 
 
 ggplot(annual_mean_erosion_annex, aes(x = Year, y = mean_annual_erosion_annex, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
   labs(title = "Erosion  on a yearly average Cheppareria, Annex Livestock Cafe",
        x = "Year",
        y = "Likelihood of servere erosion ",
        color = "LC") 
 
 
-# Plotta boxplott för varje år
+# Plot box plot
 ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   labs(title = "Erosion",
        x = "Year",
        y = "Erosion",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
-
-
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
 
 
 ```
@@ -1405,28 +1267,28 @@ annual_mean_erosion_lok <- lok_erosion_in_out_long %>%
 
 
 ggplot(annual_mean_erosion_lok, aes(x = Year, y = mean_annual_erosion_lok, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "Erosion  on a yearly average, Lokiriama Livestock Cafe",
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
+  labs(title = "Erosion on a yearly average, Lokiriama Livestock Cafe",
        x = "Year",
        y = "Likelihood of servere erosion ",
        color = "LC") 
 
-# Plotta boxplott för varje år
 ggplot(lok_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   labs(title = "Erosion",
        x = "Year",
        y = "Erosion",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "blue", "0" = "red"))
 
 ```
+
+
 ```{r}
 #Extract data
 soc_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2020_StackedModel.tif")
@@ -1467,29 +1329,28 @@ annual_mean_main_soc <- main_soc_in_out_long %>%
 
 
 ggplot(annual_mean_main_soc, aes(x = Year, y = mean_main_soc, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "SOC  on a yearly average, Main Livestock Cafe",
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
+  labs(title = "SOC on a yearly average, Main Livestock Cafe",
        x = "Year",
        y = "SOC ",
        color = "LC") 
 
-# Plotta boxplott för varje år
+
 ggplot(main_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   labs(title = "SOC Main Livestock Cafe",
        x = "Year",
        y = "SOC",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
-
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
 
 ```
+
 ```{r}
 annex_soc <- terra::extract(soc_chepp, polygonDataWGS84_annex, bind = TRUE)
 outside_annex_soc <- terra::extract(soc_chepp, outerBufferAreaWGS84_annex, bind = TRUE)
@@ -1522,27 +1383,28 @@ annual_mean_annex_soc <- annex_soc_in_out_long %>%
 
 
 ggplot(annual_mean_annex_soc, aes(x = Year, y = mean_annex_soc, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
   labs(title = "SOC on a yearly average, Annex Livestock Cafe",
        x = "Year",
        y = "SOC ",
        color = "LC") 
 
-# Plotta boxplott för varje år
+
 ggplot(annex_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   labs(title = "SOC Annex Livestock Cafe",
        x = "Year",
        y = "SOC",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
 
 ```
+
 ```{r}
 soc_lok_2020 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2020_StackedModel.tif")
 soc_lok_2021  <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2021_StackedModel.tif")
@@ -1582,41 +1444,35 @@ annual_mean_lok_soc <- lok_soc_in_out_long %>%
 
 
 ggplot(annual_mean_lok_soc, aes(x = Year, y = mean_lok_soc, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
-  theme_minimal() + # Använd ett minimalt tema
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
   labs(title = "SOC on a yearly average, Lok Livestock Cafe",
        x = "Year",
        y = "SOC ",
        color = "LC") 
 
-# Plotta boxplott för varje år
 ggplot(lok_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   labs(title = "SOC Lok Livestock Cafe",
        x = "Year",
        y = "SOC",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
-
-
-
-
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
 
 ```
-```{r erosionGraph, fig.cap="Mixed effetcts model NDVI Main", out.width="100%", fig.height=9}
 
-library(zoo)
+
+
+```{r erosionGraph, fig.cap="Mixed effetcts model NDVI Main", out.width="100%", fig.height=9}
 
 ls_in_out_melt$YearMonth_ym <- as.yearmon(format(ls_in_out_melt$Month, "%Y-%m"))
 ls_in_out_melt$Time <- as.numeric(ls_in_out_melt$YearMonth_ym - min(ls_in_out_melt$YearMonth_ym))
 ls_in_out_melt$id_source <- factor(ls_in_out_melt$id_source)
 
-
-library(lme4)
 model_NDVI_interaction <- lmer(NDVI ~ id_source * Time + (1 | Month), data = ls_in_out_melt)
 performance::check_model(model_NDVI_interaction)
 summary(model_NDVI_interaction)
@@ -1635,7 +1491,7 @@ plot_NDVI_LC <- plot_model(model_NDVI_interaction,
 print(plot_NDVI_LC)
 
 
-# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
+# # Predicted values from model, for each year and LC
 # predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "id_source"))
 # ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
 #   geom_line() +
@@ -1652,10 +1508,8 @@ print(plot_NDVI_LC)
 
 ```{r}
 
-# Konvertera Year till ett numeriskt format
 erosion_in_out_long$Year <- as.numeric(as.character(erosion_in_out_long$Year))
 
-# Skapa en tidvariabel baserat på Year
 erosion_in_out_long$Time <- erosion_in_out_long$Year - min(erosion_in_out_long$Year)
 erosion_in_out_long$LC <- factor(erosion_in_out_long$LC)
 
@@ -1665,7 +1519,6 @@ model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | Year), data = erosi
 performance::check_model(model_erosion_interaction)
 sjPlot::tab_model(model_erosion_interaction)
 
-# Visa en sammanfattning av modellen
 summary(model_erosion_interaction)
 
 plot_erosion_LC <- plot_model(model_erosion_interaction, 
@@ -1696,10 +1549,9 @@ print(plot_erosion_LC)
 
 ```{r}
 
-# Konvertera Year till ett numeriskt format
+
 main_soc_in_out_long$Year <- as.numeric(as.character(main_soc_in_out_long$Year))
 
-# Skapa en tidvariabel baserat på Year
 main_soc_in_out_long$Time <- main_soc_in_out_long$Year - min(main_soc_in_out_long$Year)
 main_soc_in_out_long$LC <- factor(main_soc_in_out_long$LC)
 model_soc_interaction <- lmer(SOC ~ LC * Time + (1 | Year), data = main_soc_in_out_long)
@@ -1708,8 +1560,6 @@ model_soc_interaction <- lmer(SOC ~ LC * Time + (1 | Year), data = main_soc_in_o
 performance::check_model(model_soc_interaction)
 sjPlot::tab_model(model_soc_interaction)
 
-
-# Visa en sammanfattning av modellen
 summary(model_soc_interaction)
 
 plot_soc_LC <- plot_model(model_soc_interaction, 
@@ -1724,7 +1574,7 @@ plot_soc_LC <- plot_model(model_soc_interaction,
 
 print(plot_soc_LC) 
 
-# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
+
 # predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
 # ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
 #   geom_line() +
@@ -1756,8 +1606,6 @@ write_xlsx(lok_chepp_filtered, path = excel_file_path_filtered)
 
 # Spara hela datan (ldsf_combined) som en Excel-fil
 write_xlsx(ldsf_combined, path = excel_file_path_combined)
-
-
 ```
 
 
