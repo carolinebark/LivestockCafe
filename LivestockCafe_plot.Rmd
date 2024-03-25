@@ -17,6 +17,7 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 library(terra)
 library(sf)
 library(terra)
+library(ggeffects)
 library(tidyverse)
 library(lubridate)
 library(sjPlot)
@@ -120,6 +121,9 @@ ldsf.LC$DataType <- 'LC' # Marking LC rows
 
 ldsf.LC <- ldsf.LC %>%
   mutate(ldsfid = paste(substr(site, 1, 4), cluster, plot, sep = "."))
+
+ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
+
   
 
 # Visa de första raderna i det uppdaterade datasetet för att kontrollera den nya kolumnen
@@ -696,50 +700,31 @@ print(g_chep)
 
 
 
-```{r}
-
-
-
-# Replace 'path_to_your_file.tif' with the path to your .tif file
-rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
-
-# Read the polygon
-polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
-
-raster_df <- as.data.frame(rasterLayer, xy=TRUE)
-
-
-# Overlay the polygon
-#plot(polygonData$geometry, add = TRUE, border = "red", lwd = 2)
-
-ldsf_spat <- ldsf_combined %>% st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
-
-
-
-
-
-```
-
 
 ```{r}
 
-
-# Läs in rasterdata
-rasterLayer_lok <- rast("../Data/Field data/Maps/Lok_2020_2024.tif")
-polygon_lok <- st_read("../Polygons/Polygon_LC_Lokriama (1).geojson")
-
-
-# Change coordinate system, in order to buffer in meters
+#  Change coordinate system, in order to buffer in meters
 polygon_lok<- st_transform(polygon_lok, crs = 32633)  # Exempel: UTM zon 33N, WGS 84
-# Create buffert using meters
-bufferedPolygon_lok <- st_buffer(polygon_lok, dist = 100)  
-outerBufferArea_lok<- st_difference(bufferedPolygon_lok, polygon_lok)
 
-# Change back to WGS84
-polygonDataWGS84_lok <- st_transform(polygon_lok, crs = 4326)  
+
+# Skapa en första buffert som representerar mellanrummet, t.ex., 10 meter ut från polygonen
+initialBuffer_lok <- st_buffer(polygon_lok, dist = 10)
+
+#Buffert utanför glappet 
+extendedBuffer_lok <- st_buffer(initialBuffer_lok, dist = 200)
+
+# Skapa yttre buffertområdet genom att subtrahera initialBuffer_lok från extendedBuffer_lok
+outerBufferArea_lok <- st_difference(extendedBuffer_lok, initialBuffer_lok)
+
+# Ändra tillbaka till WGS84
+polygonDataWGS84_lok <- st_transform(polygon_lok, crs = 4326)
 outerBufferAreaWGS84_lok <- st_transform(outerBufferArea_lok, crs = 4326)
 
-plot(polygonDataWGS84_lok)
+# # Plot polygon
+# plot(st_geometry(polygonDataWGS84_lok), main = "Polygon med with buffert", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
+# #Add the buffer to plot
+# plot(st_geometry(outerBufferAreaWGS84_lok), col = "lightgreen", add = TRUE)
+
 
 #Extract data
 livestock_cafe_lok <- terra::extract(rasterLayer_lok, polygonDataWGS84_lok, bind = TRUE)
@@ -833,21 +818,31 @@ ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = facto
 
 ```{r}
 
+# Replace 'path_to_your_file.tif' with the path to your .tif file
+rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
 
-
+# Read the polygon
+polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
+#raster_df <- as.data.frame(rasterLayer, xy=TRUE)
 
 polygon_data_chepp_main <- st_transform(polygon_data_chepp_main, crs = 32633) 
-# Skapa en buffert med X meter
-bufferedPolygon <- st_buffer(polygon_data_chepp_main, dist = 100)  
-outerBufferArea <- st_difference(bufferedPolygon, polygon_data_chepp_main)
 
-polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)   
-bufferedPolygonWGS84 <- st_transform(bufferedPolygon, crs = 4326)   
-outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)  
+# Create buffert that will make out the space between the polygon and the "outside"
+initialBuffer <- st_buffer(polygon_data_chepp_main, dist = 10)
 
-plot(outerBufferAreaWGS84)
-plot(polygonDataWGS84)
+extendedBuffer <- st_buffer(initialBuffer, dist = 100)
 
+# Create the "outside buffert by taking the diffrence
+outerBufferArea <- st_difference(extendedBuffer, initialBuffer)
+
+# Back to  WGS84 
+polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)
+outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)
+
+# # Plot the polygon and the buffert
+#plot(st_geometry(polygonDataWGS84), main = "Polygon with buffert and space in between", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
+ #plot(st_geometry(outerBufferAreaWGS84), add = TRUE, col = "lightgreen")
+ 
 
 #Extract data
 livestock_cafe <- terra::extract(rasterLayer, polygonDataWGS84, bind = TRUE)
@@ -922,17 +917,15 @@ ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(id_sou
 polygon_data_chepp_annex <- st_read("../Polygons/LC_Polygon_Annex.geojson")
 
 
-polygon_data_chepp_annex <- st_transform(polygon_data_chepp_annex, crs = 32633) 
-# Skapa en buffert med X meter
-bufferedPolygon_annex <- st_buffer(polygon_data_chepp_annex, dist = 100)  
-outerBufferArea_annex <- st_difference(bufferedPolygon_annex, polygon_data_chepp_annex)
-
+initialBuffer_annex <- st_buffer(polygon_data_chepp_annex, dist = 10)
+extendedBuffer_annex <- st_buffer(initialBuffer_annex, dist = 100)
+outerBufferArea_annex <- st_difference(extendedBuffer_annex, initialBuffer_annex)
 polygonDataWGS84_annex <- st_transform(polygon_data_chepp_annex, crs = 4326)   
-bufferedPolygonWGS84_annex<- st_transform(bufferedPolygon_annex, crs = 4326)   
-outerBufferAreaWGS84_annex<- st_transform(outerBufferArea_annex, crs = 4326)  
+outerBufferAreaWGS84_annex <- st_transform(outerBufferArea_annex, crs = 4326)  
 
-plot(outerBufferAreaWGS84_annex)
-plot(polygonDataWGS84_annex)
+# Plot
+plot(st_geometry(polygonDataWGS84_annex), col = "lightblue", main = "Polygon och and outer buffer with space in between", xlab = "Longitude", ylab = "Latitude")
+plot(st_geometry(outerBufferAreaWGS84_annex), add = TRUE, col = "lightgreen")
 
 
 #Extract data
@@ -1055,8 +1048,6 @@ herb_cov_total = herbcovrate1 + herbcovrate2 + herbcovrate3 + herbcovrate4)
 
 
 soil.pred.DT$LC <- ifelse(soil.pred.DT$cluster %in% c(17, 18), 1, 0)
-ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
-
 
 filtered_soil.pred.DT <- soil.pred.DT %>%
   filter(depthcode=="Topsoil")
@@ -1207,8 +1198,6 @@ print(combined_plot)
 chepareria_model_data <- model_data %>%
   filter(site.x == "Chepareria")
 
-
-
 model_herb_chep <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
 model_viserosion_chep <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
 model_predsoc_chep <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
@@ -1236,49 +1225,6 @@ print(combined_plot_chep)
 ```
 
 
-
-```{r erosionGraph, fig.cap="Mixed effetcts model NDVI", out.width="100%", fig.height=9}
-
-library(zoo)
-library(ggeffects)
-
-ls_in_out_melt$YearMonth_ym <- as.yearmon(format(ls_in_out_melt$Month, "%Y-%m"))
-ls_in_out_melt$Time <- as.numeric(ls_in_out_melt$YearMonth_ym - min(ls_in_out_melt$YearMonth_ym))
-
-library(lme4)
-model_NDVI_interaction <- lmer(NDVI ~ id_source * Time + (1 | Month), data = ls_in_out_melt)
-
-summary(model_NDVI_interaction)
-
-
-# Skapa en ny data.frame med önskad range av 'Time' och båda värdena av 'id_source'
-new_data <- expand.grid(Time = seq(from = min(ls_in_out_melt$Time), to = max(ls_in_out_melt$Time), length.out = 100),
-                        id_source = c(0, 1))
-
-# Beräkna förutsagda NDVI-värden baserat på modellen
-new_data$Predicted_NDVI <- predict(model_NDVI_interaction, newdata = new_data, re.form = NA)
-
-ggplot(new_data, aes(x = Time, y = Predicted_NDVI, color = factor(id_source))) +
-  geom_line() +
-  labs(title = "Predicted NDVI over Time by id_source",
-       x = "Time",
-       y = "Predicted NDVI",
-       color = "id_source") +
-  theme_minimal() +
-  scale_color_manual(values = c("blue", "red"), labels = c("id_source 0", "id_source 1"))
-
-
-```
-
-```{r}
-mod.erosion.herb <- glmer(severeero~rating+(rating|cluster),family="binomial", data=herb_cover_long)
-coef(mod.erosion.herb)
-summary(mod.erosion.herb)
-
-mod.erosion <- glmer(severeero~1+(1|site/cluster),family="binomial", data=ldsf_combined)
-summary(mod.erosion)
-coef(mod.erosion)
-```
 
 ```{r}
 
@@ -1342,17 +1288,26 @@ ggplot(erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
   geom_boxplot() + # Skapar boxplot
   theme_minimal() + # Använder ett minimalt tema
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
-  labs(title = "NDVI per month",
+  labs(title = "Erosion per year",
        x = "Year",
        y = "Erosion",
        fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
   scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
 
 
+# Change, before and after
+
+change_LC1_main <- filter(annual_mean_erosion, LC == 1 & Year %in% c("2020", "2023")) %>%
+  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
+
+change_LC0_main <- filter(annual_mean_erosion, LC == 0 & Year %in% c("2020", "2023")) %>%
+  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
 
 
 
 ```
+
+
 ```{r}
 #Extract data
 annex_erosion <- terra::extract(erosion, polygonDataWGS84_annex, bind = TRUE)
@@ -1414,49 +1369,53 @@ ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC)))
 
 ```{r}
 #Extract data
-lok_erosion <- terra::extract(erosion, polygonDataWGS84_lok, bind = TRUE)
-outside_lok_erosion <- terra::extract(erosion, outerBufferAreaWGS84_lok, bind = TRUE)
+erosion_lok_2020 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2020_StackedModel (1).tif")
+erosion_lok_2021  <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2021_StackedModel (1).tif")
+erosion_lok_2022 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2022_StackedModel (1).tif")
+erosion_lok_2023 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2023_StackedModel.tif")
 
+erosion_lok = c(erosion_lok_2020, erosion_lok_2021, erosion_lok_2022, erosion_lok_2023)
 
+lok_erosion <- terra::extract(erosion_lok, polygonDataWGS84_lok, bind = TRUE)
+outside_lok_erosion <- terra::extract(erosion_lok, outerBufferAreaWGS84_lok, bind = TRUE)
 
-annex_erosion_tbl <- as_tibble(annex_erosion)
-outside_annex_erosion_tbl <- as_tibble(outside_annex_erosion)
+lok_erosion_tbl <- as_tibble(lok_erosion)
+outside_lok_erosion_tbl <- as_tibble(outside_lok_erosion)
 
-annex_erosion_tbl$LC <- 1
-outside_annex_erosion_tbl$LC <- 0
+lok_erosion_tbl$LC <- 1
+outside_lok_erosion_tbl$LC <- 0
 
-annex_erosion_in_out = bind_rows(annex_erosion_tbl, outside_annex_erosion_tbl)
+lok_erosion_in_out = bind_rows(lok_erosion_tbl, outside_lok_erosion_tbl)
 
-colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "2020"
-colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "2021"
-colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "2022"
-colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2020_StackedModel (1)"] <- "2020"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2021_StackedModel (1)"] <- "2021"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2022_StackedModel (1)"] <- "2022"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
 
-annex_erosion_in_out_long <- pivot_longer(annex_erosion_in_out, 
+lok_erosion_in_out_long <- pivot_longer(lok_erosion_in_out, 
                                     cols = c(`2020`, `2021`, `2022`, `2023`), 
                                     names_to = "Year", 
                                     values_to = "Erosion")
 
 
-annual_mean_erosion_annex <- annex_erosion_in_out_long %>%
+annual_mean_erosion_lok <- lok_erosion_in_out_long %>%
   group_by(Year, LC) %>% 
-  summarise(mean_annual_erosion_annex = mean(Erosion, na.rm = TRUE)) %>%
+  summarise(mean_annual_erosion_lok = mean(Erosion, na.rm = TRUE)) %>%
   ungroup()
 
 
-ggplot(annual_mean_erosion_annex, aes(x = Year, y = mean_annual_erosion_annex, color = factor(LC), group = LC)) +
+ggplot(annual_mean_erosion_lok, aes(x = Year, y = mean_annual_erosion_lok, color = factor(LC), group = LC)) +
   geom_line() +  # Skapa en linjeplot
   geom_point() + # Lägg till punkter för varje datapunkt
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
   theme_minimal() + # Använd ett minimalt tema
-  labs(title = "Erosion  on a yearly average Cheppareria, Annex Livestock Cafe",
+  labs(title = "Erosion  on a yearly average, Lokiriama Livestock Cafe",
        x = "Year",
        y = "Likelihood of servere erosion ",
        color = "LC") 
 
-
 # Plotta boxplott för varje år
-ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
+ggplot(lok_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
   geom_boxplot() + # Skapar boxplot
   theme_minimal() + # Använder ett minimalt tema
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
@@ -1465,6 +1424,316 @@ ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC)))
        y = "Erosion",
        fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
   scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+
+```
+```{r}
+#Extract data
+soc_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2020_StackedModel.tif")
+soc_chepp_2021  <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2021_StackedModel.tif")
+soc_chepp_2022 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2022_StackedModel.tif")
+soc_chepp_2023 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2023_StackedModel.tif")
+
+soc_chepp = c(soc_chepp_2020, soc_chepp_2021, soc_chepp_2022, soc_chepp_2023)
+
+main_soc <- terra::extract(soc_chepp, polygonDataWGS84, bind = TRUE)
+outside_main_soc <- terra::extract(soc_chepp, outerBufferAreaWGS84, bind = TRUE)
+
+main_soc_tbl <- as_tibble(main_soc)
+outside_main_soc_tbl <- as_tibble(outside_main_soc)
+
+main_soc_tbl$LC <- 1
+outside_main_soc_tbl$LC <- 0
+
+main_soc_in_out = bind_rows(main_soc_tbl, outside_main_soc_tbl)
+
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2020_StackedModel"] <- "2020"
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2021_StackedModel"] <- "2021"
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2022_StackedModel"] <- "2022"
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2023_StackedModel"] <- "2023"
+
+main_soc_in_out <- main_soc_in_out %>%
+  mutate_at(vars(`2020`, `2021`, `2022`, `2023`), function(x) x / 1000)
+
+main_soc_in_out_long <- pivot_longer(main_soc_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "SOC")
+
+annual_mean_main_soc <- main_soc_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_main_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_main_soc, aes(x = Year, y = mean_main_soc, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "SOC  on a yearly average, Main Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+# Plotta boxplott för varje år
+ggplot(main_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "SOC Main Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+
+
+```
+```{r}
+annex_soc <- terra::extract(soc_chepp, polygonDataWGS84_annex, bind = TRUE)
+outside_annex_soc <- terra::extract(soc_chepp, outerBufferAreaWGS84_annex, bind = TRUE)
+
+annex_soc_tbl <- as_tibble(annex_soc)
+outside_annex_soc_tbl <- as_tibble(outside_annex_soc)
+
+annex_soc_tbl$LC <- 1
+outside_annex_soc_tbl$LC <- 0
+
+annex_soc_in_out = bind_rows(annex_soc_tbl, outside_annex_soc_tbl)
+
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2020_StackedModel"] <- "2020"
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2021_StackedModel"] <- "2021"
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2022_StackedModel"] <- "2022"
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2023_StackedModel"] <- "2023"
+
+annex_soc_in_out <- annex_soc_in_out %>%
+  mutate_at(vars(`2020`, `2021`, `2022`, `2023`), function(x) x / 1000)
+
+annex_soc_in_out_long <- pivot_longer(annex_soc_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "SOC")
+
+annual_mean_annex_soc <- annex_soc_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annex_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_annex_soc, aes(x = Year, y = mean_annex_soc, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "SOC on a yearly average, Annex Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+# Plotta boxplott för varje år
+ggplot(annex_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "SOC Annex Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+```
+```{r}
+soc_lok_2020 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2020_StackedModel.tif")
+soc_lok_2021  <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2021_StackedModel.tif")
+soc_lok_2022 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2022_StackedModel.tif")
+soc_lok_2023 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2023_StackedModel.tif")
+
+soc_lok = c(soc_lok_2020, soc_lok_2021, soc_lok_2022, soc_lok_2023)
+
+lok_soc <- terra::extract(soc_lok, polygonDataWGS84_lok, bind = TRUE)
+outside_lok_soc <- terra::extract(soc_lok, outerBufferAreaWGS84_lok, bind = TRUE)
+
+lok_soc_tbl <- as_tibble(lok_soc)
+outside_lok_soc_tbl <- as_tibble(outside_lok_soc)
+
+lok_soc_tbl$LC <- 1
+outside_lok_soc_tbl$LC <- 0
+
+lok_soc_in_out = bind_rows(lok_soc_tbl, outside_lok_soc_tbl)
+
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2020_StackedModel"] <- "2020"
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2021_StackedModel"] <- "2021"
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2022_StackedModel"] <- "2022"
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2023_StackedModel"] <- "2023"
+
+lok_soc_in_out <- lok_soc_in_out %>%
+  mutate_at(vars(`2020`, `2021`, `2022`, `2023`), function(x) x / 1000)
+
+lok_soc_in_out_long <- pivot_longer(lok_soc_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "SOC")
+
+annual_mean_lok_soc <- lok_soc_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_lok_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_lok_soc, aes(x = Year, y = mean_lok_soc, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje id_source
+  theme_minimal() + # Använd ett minimalt tema
+  labs(title = "SOC on a yearly average, Lok Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+# Plotta boxplott för varje år
+ggplot(lok_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + # Skapar boxplot
+  theme_minimal() + # Använder ett minimalt tema
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
+  labs(title = "SOC Lok Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+
+
+
+
+
+```
+```{r erosionGraph, fig.cap="Mixed effetcts model NDVI Main", out.width="100%", fig.height=9}
+
+library(zoo)
+
+ls_in_out_melt$YearMonth_ym <- as.yearmon(format(ls_in_out_melt$Month, "%Y-%m"))
+ls_in_out_melt$Time <- as.numeric(ls_in_out_melt$YearMonth_ym - min(ls_in_out_melt$YearMonth_ym))
+ls_in_out_melt$id_source <- factor(ls_in_out_melt$id_source)
+
+
+library(lme4)
+model_NDVI_interaction <- lmer(NDVI ~ id_source * Time + (1 | Month), data = ls_in_out_melt)
+performance::check_model(model_NDVI_interaction)
+summary(model_NDVI_interaction)
+sjPlot::tab_model(model_NDVI_interaction)
+
+plot_NDVI_LC <- plot_model(model_NDVI_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and NDVI over time")
+
+print(plot_NDVI_LC)
+
+
+# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
+# predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "id_source"))
+# ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted NDVI over Time by LC",
+#        x = "Time since start (years)",
+#        y = "Predicted Erosion",
+#        color = "LC") +
+#   theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+
+
+```
+
+```{r}
+
+# Konvertera Year till ett numeriskt format
+erosion_in_out_long$Year <- as.numeric(as.character(erosion_in_out_long$Year))
+
+# Skapa en tidvariabel baserat på Year
+erosion_in_out_long$Time <- erosion_in_out_long$Year - min(erosion_in_out_long$Year)
+erosion_in_out_long$LC <- factor(erosion_in_out_long$LC)
+
+model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | Year), data = erosion_in_out_long)
+
+
+performance::check_model(model_erosion_interaction)
+sjPlot::tab_model(model_erosion_interaction)
+
+# Visa en sammanfattning av modellen
+summary(model_erosion_interaction)
+
+plot_erosion_LC <- plot_model(model_erosion_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and Erosion over time")
+
+print(plot_erosion_LC)
+
+# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
+# predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
+# ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted Erosion over Time by LC",
+#        x = "Time since start (years)",
+#        y = "Predicted Erosion",
+#        color = "LC") +
+#   theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+
+```
+
+```{r}
+
+# Konvertera Year till ett numeriskt format
+main_soc_in_out_long$Year <- as.numeric(as.character(main_soc_in_out_long$Year))
+
+# Skapa en tidvariabel baserat på Year
+main_soc_in_out_long$Time <- main_soc_in_out_long$Year - min(main_soc_in_out_long$Year)
+main_soc_in_out_long$LC <- factor(main_soc_in_out_long$LC)
+model_soc_interaction <- lmer(SOC ~ LC * Time + (1 | Year), data = main_soc_in_out_long)
+
+
+performance::check_model(model_soc_interaction)
+sjPlot::tab_model(model_soc_interaction)
+
+
+# Visa en sammanfattning av modellen
+summary(model_soc_interaction)
+
+plot_soc_LC <- plot_model(model_soc_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and SOC over time")
+
+print(plot_soc_LC) 
+
+# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
+# predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
+# ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted Erosion over Time by LC",
+#        x = "Time since start (years)",
+#        y = "Predicted Erosion",
+#        color = "LC") +
+#   theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
 
 
 ```
