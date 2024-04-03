@@ -798,7 +798,7 @@ polygon_lok<- st_transform(polygon_lok, crs = 32633)
 initialBuffer_lok <- st_buffer(polygon_lok, dist = 10)
 
 #Set the outside buffer size (remember to add the size of the gap)
-extendedBuffer_lok <- st_buffer(initialBuffer_lok, dist = 60)
+extendedBuffer_lok <- st_buffer(initialBuffer_lok, dist = 100)
 
 # Create outside buffer by taking the diffrence between the gap and the above
 outerBufferArea_lok <- st_difference(extendedBuffer_lok, initialBuffer_lok)
@@ -919,6 +919,7 @@ extendedBuffer <- st_buffer(initialBuffer, dist = 100)
 outerBufferArea <- st_difference(extendedBuffer, initialBuffer)
 
 # Back to  WGS84 
+extendedBuffer <- st_transform(extendedBuffer, crs = 4326)
 polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)
 outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)
 
@@ -991,9 +992,9 @@ outerBufferArea_annex <- st_difference(extendedBuffer_annex, initialBuffer_annex
 polygonDataWGS84_annex <- st_transform(polygon_data_chepp_annex, crs = 4326)   
 outerBufferAreaWGS84_annex <- st_transform(outerBufferArea_annex, crs = 4326)  
 
-# # Plot
-# plot(st_geometry(polygonDataWGS84_annex), col = "lightblue", main = "Polygon och and outer buffer with space in between", xlab = "Longitude", ylab = "Latitude")
-# plot(st_geometry(outerBufferAreaWGS84_annex), add = TRUE, col = "lightgreen")
+
+plot(st_geometry(polygonDataWGS84_annex), col = "lightblue", main = "Polygon och and outer buffer with space in between", xlab = "Longitude", ylab = "Latitude")
+plot(st_geometry(outerBufferAreaWGS84_annex), add = TRUE, col = "lightgreen")
 
 livestock_cafe_annex <- terra::extract(rasterLayer, polygonDataWGS84_annex, bind = TRUE)
 month_names <- names(rasterLayer) 
@@ -1482,17 +1483,17 @@ ls_in_out_melt <- ls_in_out_melt %>%
 
 model_NDVI_interaction <- lmer(NDVI ~ LC * Time + (1 | Month), data = ls_in_out_melt)
 
-#check normality of res manually
-ls_in_out_melt <- ls_in_out_melt %>%
-  dplyr::mutate(E1 = resid(model_NDVI_interaction),
-                fitted = fitted (model_NDVI_interaction))
-
-# Histogram of the residuals 
-hist(ls_in_out_melt$E1)
-ls_in_out_melt %>%
-  ggplot() +
-  stat_qq(aes(sample = E1))+
-  stat_qq_line(aes(sample = E1))
+# #check normality of res manually
+# ls_in_out_melt <- ls_in_out_melt %>%
+#   dplyr::mutate(E1 = resid(model_NDVI_interaction),
+#                 fitted = fitted (model_NDVI_interaction))
+# 
+# # Histogram of the residuals 
+# hist(ls_in_out_melt$E1)
+# ls_in_out_melt %>%
+#   ggplot() +
+#   stat_qq(aes(sample = E1))+
+#   stat_qq_line(aes(sample = E1))
 
 performance::check_model(model_NDVI_interaction)
 summary(model_NDVI_interaction)
@@ -1605,8 +1606,6 @@ main_soc_in_out_long %>%
 
 performance::check_model(model_soc_interaction)
 
-
-
 sjPlot::tab_model(model_soc_interaction)
 
 summary(model_soc_interaction)
@@ -1624,19 +1623,299 @@ plot_soc_LC <- plot_model(model_soc_interaction,
 print(plot_soc_LC) 
 
 
-# predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
-# ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
-#   geom_line() +
-#   labs(title = "Predicted Erosion over Time by LC",
-#        x = "Time since start (years)",
-#        y = "Predicted Erosion",
-#        color = "LC") +
-#   theme_minimal() +
-#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
+ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+  geom_line() +
+  labs(title = "Predicted Erosion over Time by LC",
+       x = "Time since start (years)",
+      y = "Predicted Erosion",
+      color = "LC") +
+ theme_minimal() +
+  scale_color_manual(values = c("1" = "blue", "0" = "red"))
 
 
 ```
 
+
+
+```{r}
+ls_in_out_melt_annex$YearMonth_ym <- as.yearmon(format(ls_in_out_melt_annex$Month, "%Y-%m"))
+ls_in_out_melt_annex$Time <- as.numeric(ls_in_out_melt_annex$YearMonth_ym - min(ls_in_out_melt_annex$YearMonth_ym))
+ls_in_out_melt_annex$LC <- factor(ls_in_out_melt_annex$LC)
+
+ls_in_out_melt_annex <- ls_in_out_melt_annex %>%
+  dplyr::select( -`YearMonth_ym`)
+
+model_NDVI_interaction_annex <- lmer(NDVI ~ LC * Time + (1 | Month), data = ls_in_out_melt_annex)
+
+# #check normality of res manually
+# ls_in_out_melt <- ls_in_out_melt %>%
+#   dplyr::mutate(E1 = resid(model_NDVI_interaction),
+#                 fitted = fitted (model_NDVI_interaction))
+# 
+# # Histogram of the residuals 
+# hist(ls_in_out_melt$E1)
+# ls_in_out_melt %>%
+#   ggplot() +
+#   stat_qq(aes(sample = E1))+
+#   stat_qq_line(aes(sample = E1))
+
+performance::check_model(model_NDVI_interaction_annex)
+summary(model_NDVI_interaction_annex)
+sjPlot::tab_model(model_NDVI_interaction_annex)
+
+plot_NDVI_LC_annex <- plot_model(model_NDVI_interaction_annex, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and NDVI over time, Annex")
+
+print(plot_NDVI_LC_annex)
+
+
+# Predicted values from model, for each year and LC
+predicted_NDVI <- ggpredict(model_NDVI_interaction_annex, terms = c("Time", "LC"))
+ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
+  geom_line() +
+  labs(title = "Predicted NDVI over Time by LC",
+       x = "Time since start (years)",
+        y = "Predicted Erosion",
+       color = "LC") +
+  theme_minimal() +
+  scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+
+```
+```{r}
+annex_erosion_in_out_long$Year <- as.numeric(as.character(annex_erosion_in_out_long$Year))
+
+annex_erosion_in_out_long$Time <- annex_erosion_in_out_long$Year - min(annex_erosion_in_out_long$Year)
+erosion_in_out_long$LC <- factor(erosion_in_out_long$LC)
+
+model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | Year), data = erosion_in_out_long)
+
+#check normality of res manually
+erosion_in_out_long <- erosion_in_out_long %>%
+  dplyr::mutate(E1 = resid(model_erosion_interaction),
+                fitted = fitted (model_erosion_interaction))
+
+# Histogram of the residuals 
+
+hist(erosion_in_out_long$E1)
+erosion_in_out_long %>%
+  ggplot() +
+  stat_qq(aes(sample = E1))+
+  stat_qq_line(aes(sample = E1))
+
+
+performance::check_model(model_erosion_interaction)
+sjPlot::tab_model(model_erosion_interaction)
+
+summary(model_erosion_interaction)
+
+plot_erosion_LC <- plot_model(model_erosion_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and Erosion over time")
+
+print(plot_erosion_LC)
+
+# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
+ predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
+ ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+  geom_line() +
+ labs(title = "Predicted Erosion over Time by LC",
+        x = "Time since start (years)",
+       y = "Predicted Erosion",
+        color = "LC") +
+   theme_minimal() +
+   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+
+```
+```{r}
+
+ls_in_out_melt <- ls_in_out_melt %>%
+  mutate(year = lubridate::year(Month))
+
+data_filtered_ndvi  <- ls_in_out_melt %>%
+  filter(year %in% c(2020, 2023))
+
+data_filtered_ndvi=data_filtered_ndvi %>% mutate(after=if_else(Year>2021, 1, 0))
+
+model_ndvi_main_ba <- lm(NDVI ~ factor(after) * factor(LC), data = data_filtered_ndvi)
+
+performance::check_model(model_ndvi_main_ba)
+
+sjPlot::tab_model(model_ndvi_main_ba)
+
+summary(model_ndvi_main_ba)
+
+plot_ndvi_ba <- plot_model(model_ndvi_main_ba, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and NDVI over time")
+
+print(plot_ndvi_ba) 
+
+```
+
+```{r}
+main_soc_in_out_long$Year <- as.numeric(as.character(main_soc_in_out_long$Year))
+data_filtered_soc <- main_soc_in_out_long[main_soc_in_out_long$Year %in% c(2020, 2023), ]
+
+data_filtered_soc=data_filtered_soc %>% mutate(after=if_else(year>2021, 1, 0))
+
+
+model_soc_main_ba <- lm(SOC ~ factor(after) * factor(LC), data = data_filtered_soc)
+
+performance::check_model(model_soc_main_ba)
+
+sjPlot::tab_model(model_soc_main_ba)
+
+summary(model_soc_main_ba)
+
+plot_soc_ba <- plot_model(model_soc_main_ba, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and SOC over time")
+
+print(plot_soc_ba) 
+
+
+```
+```{r}
+
+
+
+
+data_filtered_erosion <- erosion_in_out_long %>%
+  filter(Year %in% c(2020, 2023))
+
+data_filtered_erosion=data_filtered_erosion %>% mutate(after=if_else(Year>2021, 1, 0))
+
+model_erosion_main_ba <- lm(Erosion ~ factor(after) * factor(LC), data = data_filtered_erosion)
+
+performance::check_model(model_erosion_main_ba)
+
+sjPlot::tab_model(model_erosion_main_ba)
+
+summary(model_erosion_main_ba)
+
+plot_erosion_ba <- plot_model(model_erosion_main_ba, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and Erosion over time")
+
+print(plot_erosion_ba) 
+
+```
+
+```{r}
+# plot(soc_chepp_2020)
+# plot(soc_chepp_2023)
+
+soc_diff <- soc_chepp_2023 - soc_chepp_2020
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster <- crop(soc_diff, buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+plot(cropped_raster, col=colors, main="SOC Change (2023 - 2020) within and around the Polygon", range=c(-15000,15000))
+
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+```
+```{r}
+
+
+erosion_diff <- erosion_chepp_2023 - erosion_chepp_2020
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+plot(erosion_diff , col=colors, main="Erosion Change (2023 - 2020)", 
+     zlim=c(data_min, data_max))
+
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster_erosion <- crop(erosion_diff , buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+
+plot(cropped_raster_erosion, col=colors, main="Erosion Change (2023 - 2020) within and around the Polygon", range=c(-150,150))
+
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+
+```
+
+```{r}
+layer_2020 <- rasterLayer[["2020 12"]]
+layer_2023 <- rasterLayer[["2023 12"]]
+
+NDVI_diff <- layer_2023 - layer_2020
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster_NDVI <- crop(NDVI_diff, buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+plot(cropped_raster_NDVI, col=colors, main="NDVI Change (December 2023 - December 2020) within and around the Polygon", range=c(-0.3,0.3))
+ 
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+```
+```{r}
+index2020 <- grep("2020", names(rasterLayer))
+index2023 <- grep("2023", names(rasterLayer))
+
+avg2020 <- mean(rasterLayer[[index2020]], na.rm = TRUE)
+avg2023 <- mean(rasterLayer[[index2023]], na.rm = TRUE)
+
+NDVI_diff <- avg2023 - avg2020
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster_NDVI <- crop(NDVI_diff, buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+data_min <- min(cropped_raster[], na.rm = TRUE)
+data_max <- max(cropped_raster[], na.rm = TRUE)
+
+
+plot(cropped_raster_NDVI, col=colors, main="NDVI Change yearly average", range=c(-0.5,0.5))
+ 
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+```
 
 ```{r}
 library(writexl)
@@ -1692,7 +1971,6 @@ cleaned_df <- filtrerad_df %>%
 # Visa de första raderna för att kontrollera ändringarna
 head(cleaned_df)
 
-
 colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2020_StackedModel"] <- "SOC 2020"
 colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2021_StackedModel"] <- "SOC 2021"
 colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2022_StackedModel"] <- "SOC 2022"
@@ -1704,5 +1982,73 @@ colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_severeero_2
 colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "Erosion 2023"
 
 ```
+
+```{r}
+
+library(openxlsx)
+
+ls_in_out_melt_lok_copy <- data.frame(ls_in_out_melt_lok)
+ls_in_out_melt_lok_copy <- dplyr::select(ls_in_out_melt_lok_copy, -c(Month,ID))
+ls_in_out_melt_lok_copy$LCID <- 3
+
+ls_in_out_melt_annex_copy <- data.frame(ls_in_out_melt_annex)
+ls_in_out_melt_annex_copy <- dplyr::select(ls_in_out_melt_annex_copy, -c(Month,ID,Time))
+ls_in_out_melt_annex_copy$LCID <- 2
+
+ls_in_out_melt_copy <- data.frame(ls_in_out_melt)
+ls_in_out_melt_copy <- dplyr::select(ls_in_out_melt_copy, -c(Month,ID,Time))
+ls_in_out_melt_copy$LCID <- 1
+
+merged_dataset_ndvi <- rbind(ls_in_out_melt_lok_copy, ls_in_out_melt_annex_copy, ls_in_out_melt_copy)
+
+merged_dataset_ndvi <- separate(merged_dataset_ndvi, YearMonth, into = c("Year", "Month"), sep = "-", remove = FALSE, convert = TRUE)
+
+write.xlsx(merged_dataset_ndvi , "merged_dataset_ndvi.xlsx")
+write.xlsx(merged_dataset_ndvi, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_ndvi.xlsx")
+
+
+```
+
+```{r}
+main_soc_in_out_long_copy <- data.frame(main_soc_in_out_long)
+main_soc_in_out_long_copy<- dplyr::select(main_soc_in_out_long_copy, -c(E1, fitted,ID,Time))
+main_soc_in_out_long_copy$LCID <- 1
+
+annex_soc_in_out_long_copy <- data.frame(annex_soc_in_out_long)
+annex_soc_in_out_long_copy<- dplyr::select(annex_soc_in_out_long_copy, -c(ID))
+annex_soc_in_out_long_copy$LCID <- 2
+
+lok_soc_in_out_long_copy <- data.frame(lok_soc_in_out_long)
+lok_soc_in_out_long_copy<- dplyr::select(lok_soc_in_out_long_copy, -c(ID))
+lok_soc_in_out_long_copy$LCID <- 3
+
+merged_dataset_soc <- rbind(main_soc_in_out_long_copy , annex_soc_in_out_long_copy, lok_soc_in_out_long_copy)
+
+write.xlsx(merged_dataset_soc , "merged_dataset_soc.xlsx")
+write.xlsx(merged_dataset_soc , "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_soc.xlsx")
+
+
+```
+
+```{r}
+erosion_in_out_long_copy <- data.frame(erosion_in_out_long)
+erosion_in_out_long_copy<- dplyr::select(erosion_in_out_long_copy, -c(E1, fitted,ID,Time))
+erosion_in_out_long_copy$LCID <- 1
+
+annex_erosion_in_out_long_copy <- data.frame(annex_erosion_in_out_long)
+annex_erosion_in_out_long_copy<- dplyr::select(annex_erosion_in_out_long_copy, -c(Time, ID))
+annex_erosion_in_out_long_copy$LCID <- 2
+
+lok_erosion_in_out_long_copy <- data.frame(lok_erosion_in_out_long)
+lok_erosion_in_out_long_copy<- dplyr::select(lok_erosion_in_out_long_copy, -c(ID))
+lok_erosion_in_out_long_copy$LCID <- 3
+
+merged_dataset_erosion <- rbind(erosion_in_out_long_copy , annex_erosion_in_out_long_copy, lok_erosion_in_out_long_copy)
+
+write.xlsx(merged_dataset_erosion, "merged_dataset_erosion.xlsx")
+write.xlsx(merged_dataset_erosion, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_erosion.xlsx")
+
+```
+
 
 
