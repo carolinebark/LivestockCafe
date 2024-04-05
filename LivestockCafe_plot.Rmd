@@ -786,6 +786,9 @@ combined_plot_chep <- plot_herb_chep + plot_viserosion_chep + plot_predsoc_chep 
 print(combined_plot_chep)
 
 ```
+
+
+
 ```{r}
 # Läs in rasterdata
 rasterLayer_lok <- rast("../Data/Field data/Maps/Lok_2020_2024.tif")
@@ -1109,10 +1112,6 @@ erosion_chepp_2023 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_sever
 
 erosion = c(erosion_chepp_2020, erosion_chepp_2021, erosion_chepp_2022, erosion_chepp_2023)
 
-plot(outerBufferAreaWGS84)
-plot(polygonDataWGS84)
-
-
 #Extract data
 livestock_cafe_erosion <- terra::extract(erosion, polygonDataWGS84, bind = TRUE)
 outside_livestock_cafe_erosion <- terra::extract(erosion, outerBufferAreaWGS84, bind = TRUE)
@@ -1145,24 +1144,23 @@ annual_mean_erosion <- erosion_in_out_long %>%
 ggplot(annual_mean_erosion, aes(x = Year, y = mean_annual_erosion, color = factor(LC), group = LC)) +
   geom_line() +  # Skapa en linjeplot
   geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje LC
-  theme_minimal() + # Använd ett minimalt tema
+  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  theme_minimal() + 
   labs(title = "Erosion  on a yearly average Cheppareria, Main Livestock Cafe",
        x = "Year",
        y = "Likelihood of servere erosion ",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
+       color = "LC") 
 
 # Plotta boxplott för varje år
 ggplot(erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
-  geom_boxplot() + # Skapar boxplot
-  theme_minimal() + # Använder ett minimalt tema
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + # Roterar x-axelns text för bättre läsbarhet
-  labs(title = "Erosion per year",
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Erosion Main LC",
        x = "Year",
        y = "Erosion",
-       fill = "LC") + # Lägger till titel och namn på axlarna samt anpassar legendtitel
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) # Specificerar färger för boxplots
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
 
 
 # Calculate change, before and after (just to have it in numbers)
@@ -1213,7 +1211,7 @@ ggplot(annual_mean_erosion_annex, aes(x = Year, y = mean_annual_erosion_annex, c
   geom_point() + 
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
   theme_minimal() + 
-  labs(title = "Erosion  on a yearly average Cheppareria, Annex Livestock Cafe",
+  labs(title = "Erosion on a yearly average Cheppareria, Annex Livestock Cafe",
        x = "Year",
        y = "Likelihood of servere erosion ",
        color = "LC") 
@@ -1224,7 +1222,7 @@ ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC)))
   geom_boxplot() + 
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "Erosion",
+  labs(title = "Erosion Annex",
        x = "Year",
        y = "Erosion",
        fill = "LC") + 
@@ -1285,7 +1283,7 @@ ggplot(lok_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
   geom_boxplot() + 
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "Erosion",
+  labs(title = "Erosion Lokiriama",
        x = "Year",
        y = "Erosion",
        fill = "LC") +
@@ -1381,6 +1379,8 @@ annex_soc_in_out_long <- pivot_longer(annex_soc_in_out,
                                     names_to = "Year", 
                                     values_to = "SOC")
 
+
+
 annual_mean_annex_soc <- annex_soc_in_out_long %>%
   group_by(Year, LC) %>% 
   summarise(mean_annex_soc = mean(SOC, na.rm = TRUE)) %>%
@@ -1392,7 +1392,7 @@ ggplot(annual_mean_annex_soc, aes(x = Year, y = mean_annex_soc, color = factor(L
   geom_point() + 
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
   theme_minimal() + 
-  labs(title = "SOC on a yearly average, Annex Livestock Cafe",
+  labs(title = "SOC yearly average, Annex Livestock Cafe",
        x = "Year",
        y = "SOC ",
        color = "LC") 
@@ -1453,7 +1453,7 @@ ggplot(annual_mean_lok_soc, aes(x = Year, y = mean_lok_soc, color = factor(LC), 
   geom_point() + 
   scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
   theme_minimal() + 
-  labs(title = "SOC on a yearly average, Lok Livestock Cafe",
+  labs(title = "SOC yearly average, Lokiriama Livestock Cafe",
        x = "Year",
        y = "SOC ",
        color = "LC") 
@@ -1462,7 +1462,7 @@ ggplot(lok_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
   geom_boxplot() + 
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "SOC Lok Livestock Cafe",
+  labs(title = "SOC Lokiriama Livestock Cafe",
        x = "Year",
        y = "SOC",
        fill = "LC") +
@@ -1470,18 +1470,96 @@ ggplot(lok_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
 
 ```
 
+```{r}
+
+#FLYTTA UPP DENNA DEL OCH ANVÄND DET TILL OVAN OCKSÅ
+
+library(openxlsx)
+
+ls_in_out_melt_lok_copy <- data.frame(ls_in_out_melt_lok)
+ls_in_out_melt_lok_copy <- dplyr::select(ls_in_out_melt_lok_copy, -c(Month,ID))
+ls_in_out_melt_lok_copy$LCID <- "A"
+
+ls_in_out_melt_copy <- data.frame(ls_in_out_melt)
+ls_in_out_melt_copy <- dplyr::select(ls_in_out_melt_copy, -c(Month,ID,Time,year))
+ls_in_out_melt_copy$LCID <- "B"
+
+ls_in_out_melt_annex_copy <- data.frame(ls_in_out_melt_annex)
+ls_in_out_melt_annex_copy <- dplyr::select(ls_in_out_melt_annex_copy, -c(Month,ID))
+ls_in_out_melt_annex_copy$LCID <- "C"
 
 
-```{r erosionGraph, fig.cap="Mixed effetcts model NDVI Main", out.width="100%", fig.height=9}
+merged_dataset_ndvi <- rbind(ls_in_out_melt_lok_copy, ls_in_out_melt_annex_copy, ls_in_out_melt_copy)
 
-ls_in_out_melt$YearMonth_ym <- as.yearmon(format(ls_in_out_melt$Month, "%Y-%m"))
-ls_in_out_melt$Time <- as.numeric(ls_in_out_melt$YearMonth_ym - min(ls_in_out_melt$YearMonth_ym))
-ls_in_out_melt$LC <- factor(ls_in_out_melt$LC)
+merged_dataset_ndvi <- separate(merged_dataset_ndvi, YearMonth, into = c("Year", "Month"), sep = "-", remove = FALSE, convert = TRUE)
 
-ls_in_out_melt <- ls_in_out_melt %>%
-  dplyr::select( -`YearMonth_ym`)
+# write.xlsx(merged_dataset_ndvi , "merged_dataset_ndvi.xlsx")
+# write.xlsx(merged_dataset_ndvi, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_ndvi.xlsx")
 
-model_NDVI_interaction <- lmer(NDVI ~ LC * Time + (1 | Month), data = ls_in_out_melt)
+
+```
+
+```{r}
+
+lok_soc_in_out_long_copy <- data.frame(lok_soc_in_out_long)
+lok_soc_in_out_long_copy<- dplyr::select(lok_soc_in_out_long_copy, -c(ID))
+lok_soc_in_out_long_copy$LCID <- "A"
+
+main_soc_in_out_long_copy <- data.frame(main_soc_in_out_long)
+main_soc_in_out_long_copy<- dplyr::select(main_soc_in_out_long_copy, -c(E1, fitted,ID,Time))
+main_soc_in_out_long_copy$LCID <- "B"
+
+annex_soc_in_out_long_copy <- data.frame(annex_soc_in_out_long)
+annex_soc_in_out_long_copy<- dplyr::select(annex_soc_in_out_long_copy, -c(ID))
+annex_soc_in_out_long_copy$LCID <- "C"
+
+
+merged_dataset_soc <- rbind(main_soc_in_out_long_copy , annex_soc_in_out_long_copy, lok_soc_in_out_long_copy)
+
+# write.xlsx(merged_dataset_soc , "merged_dataset_soc.xlsx")
+# write.xlsx(merged_dataset_soc , "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_soc.xlsx")
+
+
+```
+
+```{r}
+
+lok_erosion_in_out_long_copy <- data.frame(lok_erosion_in_out_long)
+lok_erosion_in_out_long_copy<- dplyr::select(lok_erosion_in_out_long_copy, -c(ID))
+lok_erosion_in_out_long_copy$LCID <- "A"
+
+erosion_in_out_long_copy <- data.frame(erosion_in_out_long)
+erosion_in_out_long_copy<- dplyr::select(erosion_in_out_long_copy, -c(E1, fitted,ID,Time))
+erosion_in_out_long_copy$LCID <- "B"
+
+annex_erosion_in_out_long_copy <- data.frame(annex_erosion_in_out_long)
+annex_erosion_in_out_long_copy<- dplyr::select(annex_erosion_in_out_long_copy, -c(ID))
+annex_erosion_in_out_long_copy$LCID <- "C"
+
+
+merged_dataset_erosion <- rbind(erosion_in_out_long_copy , annex_erosion_in_out_long_copy, lok_erosion_in_out_long_copy)
+
+# write.xlsx(merged_dataset_erosion, "merged_dataset_erosion.xlsx")
+# write.xlsx(merged_dataset_erosion, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_erosion.xlsx")
+
+```
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+merged_dataset_ndvi <- merged_dataset_ndvi %>%
+  mutate(
+    Date = as.Date(paste0(YearMonth, "-01")),
+    Time = interval(start = min(Date), end = Date) / years (1)
+  )
+
+merged_dataset_ndvi$LC <- factor(merged_dataset_ndvi$LC)
+
+ merged_ndvi_chepp<- merged_dataset_ndvi %>%
+  filter(LCID %in% c("B", "C"))
+
+model_NDVI_interaction <- lmer(NDVI ~ LC * Time + (1 | LCID), data = merged_ndvi_chepp) 
 
 # #check normality of res manually
 # ls_in_out_melt <- ls_in_out_melt %>%
@@ -1495,7 +1573,7 @@ model_NDVI_interaction <- lmer(NDVI ~ LC * Time + (1 | Month), data = ls_in_out_
 #   stat_qq(aes(sample = E1))+
 #   stat_qq_line(aes(sample = E1))
 
-performance::check_model(model_NDVI_interaction)
+#performance::check_model(model_NDVI_interaction)
 summary(model_NDVI_interaction)
 sjPlot::tab_model(model_NDVI_interaction)
 
@@ -1507,21 +1585,21 @@ plot_NDVI_LC <- plot_model(model_NDVI_interaction,
                             value.offset = 0.4,
                             value.size = 3.5,
                             colors = c("#CC6A70", "#22A884"),
-                            title = "LC and NDVI over time")
+                            title = "Main LC, NDVI over time")
 
 print(plot_NDVI_LC)
 
 
-# # Predicted values from model, for each year and LC
-# predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "LC"))
-# ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
-#   geom_line() +
-#   labs(title = "Predicted NDVI over Time by LC",
-#        x = "Time since start (years)",
-#        y = "Predicted Erosion",
-#        color = "LC") +
-#   theme_minimal() +
-#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+ predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "LC"))
+ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
+  geom_line() +
+  labs(title = "Predicted NDVI over Time Main LC",
+      x = "Time since start (years)",
+        y = "Predicted Erosion",
+       color = "LC") +
+  theme_minimal() +
+  scale_color_manual(values = c("1" = "blue", "0" = "red"))
 
 
 
@@ -1529,28 +1607,31 @@ print(plot_NDVI_LC)
 
 ```{r}
 
-erosion_in_out_long$Year <- as.numeric(as.character(erosion_in_out_long$Year))
+merged_dataset_erosion$Year <- as.numeric(as.character(merged_dataset_erosion$Year))
+merged_dataset_erosion$Time <- merged_dataset_erosion$Year - min(merged_dataset_erosion$Year)
+merged_dataset_erosion$LC <- factor(merged_dataset_erosion$LC)
+merged_dataset_erosion$Year <- factor(merged_dataset_erosion$Year)
 
-erosion_in_out_long$Time <- erosion_in_out_long$Year - min(erosion_in_out_long$Year)
-erosion_in_out_long$LC <- factor(erosion_in_out_long$LC)
+merged_erosion_chepp<- merged_dataset_erosion %>%
+  filter(LCID %in% c("B", "C"))
 
-model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | Year), data = erosion_in_out_long)
+model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | LCID), data = merged_erosion_chepp)
 
-#check normality of res manually
-erosion_in_out_long <- erosion_in_out_long %>%
-  dplyr::mutate(E1 = resid(model_erosion_interaction),
-                fitted = fitted (model_erosion_interaction))
+# #check normality of res manually
+# erosion_in_out_long <- erosion_in_out_long %>%
+#   dplyr::mutate(E1 = resid(model_erosion_interaction),
+#                 fitted = fitted (model_erosion_interaction))
+# 
+# # Histogram of the residuals 
+# 
+# hist(erosion_in_out_long$E1)
+# erosion_in_out_long %>%
+#   ggplot() +
+#   stat_qq(aes(sample = E1))+
+#   stat_qq_line(aes(sample = E1))
 
-# Histogram of the residuals 
 
-hist(erosion_in_out_long$E1)
-erosion_in_out_long %>%
-  ggplot() +
-  stat_qq(aes(sample = E1))+
-  stat_qq_line(aes(sample = E1))
-
-
-performance::check_model(model_erosion_interaction)
+#performance::check_model(model_erosion_interaction)
 sjPlot::tab_model(model_erosion_interaction)
 
 summary(model_erosion_interaction)
@@ -1563,15 +1644,14 @@ plot_erosion_LC <- plot_model(model_erosion_interaction,
                             value.offset = 0.4,
                             value.size = 3.5,
                             colors = c("#CC6A70", "#22A884"),
-                            title = "LC and Erosion over time")
+                            title = "Main LC, Erosion over time")
 
 print(plot_erosion_LC)
 
-# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
  predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
  ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
   geom_line() +
- labs(title = "Predicted Erosion over Time by LC",
+ labs(title = "Predicted Erosion over Time, Main LC",
         x = "Time since start (years)",
        y = "Predicted Erosion",
         color = "LC") +
@@ -1584,21 +1664,24 @@ print(plot_erosion_LC)
 ```{r}
 
 
-main_soc_in_out_long$Year <- as.numeric(as.character(main_soc_in_out_long$Year))
+merged_dataset_soc$Year <- as.numeric(as.character(merged_dataset_soc$Year))
 
-main_soc_in_out_long$Time <- main_soc_in_out_long$Year - min(main_soc_in_out_long$Year)
-main_soc_in_out_long$LC <- factor(main_soc_in_out_long$LC)
-model_soc_interaction <- lmer(SOC ~ LC * Time + (1 | Year), data = main_soc_in_out_long)
+merged_dataset_soc$Time <- merged_dataset_soc$Year - min(merged_dataset_soc$Year)
+merged_dataset_soc$LC <- factor(merged_dataset_soc$LC)
+merged_dataset_soc$Year <- factor(merged_dataset_soc$Year)
+
+merged_soc_chepp<- merged_dataset_soc %>%
+  filter(LCID %in% c("B", "C"))
+
+model_soc_interaction <- lmer(SOC ~ LC * Time + (1 | LCID), data = merged_soc_chepp)
 
 #check normality of res manually
-main_soc_in_out_long <- main_soc_in_out_long %>%
+merged_soc_chepp <- merged_soc_chepp%>%
   dplyr::mutate(E1 = resid(model_soc_interaction),
                 fitted = fitted (model_soc_interaction))
 
-# Histogram of the residuals 
-
-hist(main_soc_in_out_long$E1)
-main_soc_in_out_long %>%
+hist(merged_soc_chepp$E1)
+merged_soc_chepp %>%
   ggplot() +
   stat_qq(aes(sample = E1))+
   stat_qq_line(aes(sample = E1))
@@ -1618,17 +1701,18 @@ plot_soc_LC <- plot_model(model_soc_interaction,
                             value.offset = 0.4,
                             value.size = 3.5,
                             colors = c("#CC6A70", "#22A884"),
-                            title = "LC and SOC over time")
+                            title = "Main LC, SOC over time")
 
 print(plot_soc_LC) 
 
 
-predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
-ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+
+predicted_soc <- ggpredict(model_soc_interaction, terms = c("Time", "LC"))
+ggplot( predicted_soc, aes(x = x, y = predicted, color = group)) +
   geom_line() +
-  labs(title = "Predicted Erosion over Time by LC",
+  labs(title = "Predicted SOC over Time Main LC",
        x = "Time since start (years)",
-      y = "Predicted Erosion",
+      y = "Predicted SOC",
       color = "LC") +
  theme_minimal() +
   scale_color_manual(values = c("1" = "blue", "0" = "red"))
@@ -1639,120 +1723,15 @@ ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
 
 
 ```{r}
-ls_in_out_melt_annex$YearMonth_ym <- as.yearmon(format(ls_in_out_melt_annex$Month, "%Y-%m"))
-ls_in_out_melt_annex$Time <- as.numeric(ls_in_out_melt_annex$YearMonth_ym - min(ls_in_out_melt_annex$YearMonth_ym))
-ls_in_out_melt_annex$LC <- factor(ls_in_out_melt_annex$LC)
-
-ls_in_out_melt_annex <- ls_in_out_melt_annex %>%
-  dplyr::select( -`YearMonth_ym`)
-
-model_NDVI_interaction_annex <- lmer(NDVI ~ LC * Time + (1 | Month), data = ls_in_out_melt_annex)
-
-# #check normality of res manually
-# ls_in_out_melt <- ls_in_out_melt %>%
-#   dplyr::mutate(E1 = resid(model_NDVI_interaction),
-#                 fitted = fitted (model_NDVI_interaction))
-# 
-# # Histogram of the residuals 
-# hist(ls_in_out_melt$E1)
-# ls_in_out_melt %>%
-#   ggplot() +
-#   stat_qq(aes(sample = E1))+
-#   stat_qq_line(aes(sample = E1))
-
-performance::check_model(model_NDVI_interaction_annex)
-summary(model_NDVI_interaction_annex)
-sjPlot::tab_model(model_NDVI_interaction_annex)
-
-plot_NDVI_LC_annex <- plot_model(model_NDVI_interaction_annex, 
-                            type = "est",
-                            transform = NULL,
-                            vline.color = "gray",
-                            show.values = TRUE,
-                            value.offset = 0.4,
-                            value.size = 3.5,
-                            colors = c("#CC6A70", "#22A884"),
-                            title = "LC and NDVI over time, Annex")
-
-print(plot_NDVI_LC_annex)
-
-
-# Predicted values from model, for each year and LC
-predicted_NDVI <- ggpredict(model_NDVI_interaction_annex, terms = c("Time", "LC"))
-ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
-  geom_line() +
-  labs(title = "Predicted NDVI over Time by LC",
-       x = "Time since start (years)",
-        y = "Predicted Erosion",
-       color = "LC") +
-  theme_minimal() +
-  scale_color_manual(values = c("1" = "blue", "0" = "red"))
-
-
-```
-```{r}
-annex_erosion_in_out_long$Year <- as.numeric(as.character(annex_erosion_in_out_long$Year))
-
-annex_erosion_in_out_long$Time <- annex_erosion_in_out_long$Year - min(annex_erosion_in_out_long$Year)
-erosion_in_out_long$LC <- factor(erosion_in_out_long$LC)
-
-model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | Year), data = erosion_in_out_long)
-
-#check normality of res manually
-erosion_in_out_long <- erosion_in_out_long %>%
-  dplyr::mutate(E1 = resid(model_erosion_interaction),
-                fitted = fitted (model_erosion_interaction))
-
-# Histogram of the residuals 
-
-hist(erosion_in_out_long$E1)
-erosion_in_out_long %>%
-  ggplot() +
-  stat_qq(aes(sample = E1))+
-  stat_qq_line(aes(sample = E1))
-
-
-performance::check_model(model_erosion_interaction)
-sjPlot::tab_model(model_erosion_interaction)
-
-summary(model_erosion_interaction)
-
-plot_erosion_LC <- plot_model(model_erosion_interaction, 
-                            type = "est",
-                            transform = NULL,
-                            vline.color = "gray",
-                            show.values = TRUE,
-                            value.offset = 0.4,
-                            value.size = 3.5,
-                            colors = c("#CC6A70", "#22A884"),
-                            title = "LC and Erosion over time")
-
-print(plot_erosion_LC)
-
-# # För att visualisera de förutsagda värdena från modellen över tid för varje LC
- predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
- ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
-  geom_line() +
- labs(title = "Predicted Erosion over Time by LC",
-        x = "Time since start (years)",
-       y = "Predicted Erosion",
-        color = "LC") +
-   theme_minimal() +
-   scale_color_manual(values = c("1" = "blue", "0" = "red"))
-
-
-```
-```{r}
 
 ls_in_out_melt <- ls_in_out_melt %>%
   mutate(year = lubridate::year(Month))
 
-data_filtered_ndvi  <- ls_in_out_melt %>%
-  filter(year %in% c(2020, 2023))
+data_filtered_ndvi <- ls_in_out_melt %>%
+  filter(year %in% c(2020, 2023)) %>%
+    mutate(after = factor(if_else(year == 2023, 1, 0), levels = c(0, 1)))
 
-data_filtered_ndvi=data_filtered_ndvi %>% mutate(after=if_else(Year>2021, 1, 0))
-
-model_ndvi_main_ba <- lm(NDVI ~ factor(after) * factor(LC), data = data_filtered_ndvi)
+model_ndvi_main_ba <- lm(NDVI ~ after * LC, data = data_filtered_ndvi)
 
 performance::check_model(model_ndvi_main_ba)
 
@@ -1768,7 +1747,7 @@ plot_ndvi_ba <- plot_model(model_ndvi_main_ba,
                             value.offset = 0.4,
                             value.size = 3.5,
                             colors = c("#CC6A70", "#22A884"),
-                            title = "LC and NDVI over time")
+                            title = "Main LC and NDVI over time")
 
 print(plot_ndvi_ba) 
 
@@ -1776,12 +1755,11 @@ print(plot_ndvi_ba)
 
 ```{r}
 main_soc_in_out_long$Year <- as.numeric(as.character(main_soc_in_out_long$Year))
-data_filtered_soc <- main_soc_in_out_long[main_soc_in_out_long$Year %in% c(2020, 2023), ]
+data_filtered_soc <- main_soc_in_out_long %>%
+  filter(Year %in% c(2020, 2023)) %>%
+  mutate(after = factor(if_else(Year == 2023, 1, 0), levels = c(0, 1)))
 
-data_filtered_soc=data_filtered_soc %>% mutate(after=if_else(year>2021, 1, 0))
-
-
-model_soc_main_ba <- lm(SOC ~ factor(after) * factor(LC), data = data_filtered_soc)
+model_soc_main_ba <- lm(SOC ~ after * LC, data = data_filtered_soc)
 
 performance::check_model(model_soc_main_ba)
 
@@ -1797,7 +1775,7 @@ plot_soc_ba <- plot_model(model_soc_main_ba,
                             value.offset = 0.4,
                             value.size = 3.5,
                             colors = c("#CC6A70", "#22A884"),
-                            title = "LC and SOC over time")
+                            title = "Main LC and SOC over time")
 
 print(plot_soc_ba) 
 
@@ -1805,15 +1783,14 @@ print(plot_soc_ba)
 ```
 ```{r}
 
-
-
-
 data_filtered_erosion <- erosion_in_out_long %>%
   filter(Year %in% c(2020, 2023))
 
-data_filtered_erosion=data_filtered_erosion %>% mutate(after=if_else(Year>2021, 1, 0))
 
-model_erosion_main_ba <- lm(Erosion ~ factor(after) * factor(LC), data = data_filtered_erosion)
+data_filtered_erosion <- data_filtered_erosion %>%
+  mutate(after = factor(if_else(Year > 2021, 1, 0)))
+
+model_erosion_main_ba <- lm(Erosion ~ after * LC, data = data_filtered_erosion)
 
 performance::check_model(model_erosion_main_ba)
 
@@ -1839,7 +1816,11 @@ print(plot_erosion_ba)
 # plot(soc_chepp_2020)
 # plot(soc_chepp_2023)
 
-soc_diff <- soc_chepp_2023 - soc_chepp_2020
+soc_chepp_2023_scaled <- soc_chepp_2023 / 1000
+soc_chepp_2020_scaled <- soc_chepp_2020 / 1000
+
+# Ta skillnaden mellan de skalerade rasterfilerna
+soc_diff <- soc_chepp_2023_scaled - soc_chepp_2020_scaled
 
 colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
 
@@ -1849,14 +1830,18 @@ cropped_raster <- crop(soc_diff, buffered_polygon)
 
 colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
 
-plot(cropped_raster, col=colors, main="SOC Change (2023 - 2020) within and around the Polygon", range=c(-15000,15000))
+plot(cropped_raster, col=colors, main="SOC Change (2023 - 2020) within and around the Polygon", range=c(-15,15))
 
 lines(vect(polygonDataWGS84), col="black", lwd=2)
 ```
 ```{r}
 
 
-erosion_diff <- erosion_chepp_2023 - erosion_chepp_2020
+erosion_diff <- erosion_chepp_2020 - erosion_chepp_2023  
+
+# negative_colors <- colorRampPalette(c("blue", "white"))(50) 
+# positive_colors <- colorRampPalette(c("white", "red"))(50)
+# colors <- c(negative_colors, positive_colors)
 
 colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
 
@@ -1868,10 +1853,7 @@ buffered_polygon <- buffer(vect(polygonDataWGS84), width=500)
 
 cropped_raster_erosion <- crop(erosion_diff , buffered_polygon)
 
-colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
-
-
-plot(cropped_raster_erosion, col=colors, main="Erosion Change (2023 - 2020) within and around the Polygon", range=c(-150,150))
+plot(cropped_raster_erosion, col=colors, main="Erosion Change (2023 - 2020) within and around the Polygon", range=c(-100,100))
 
 lines(vect(polygonDataWGS84), col="black", lwd=2)
 
@@ -1912,143 +1894,57 @@ data_min <- min(cropped_raster[], na.rm = TRUE)
 data_max <- max(cropped_raster[], na.rm = TRUE)
 
 
-plot(cropped_raster_NDVI, col=colors, main="NDVI Change yearly average", range=c(-0.5,0.5))
+plot(cropped_raster_NDVI, col=colors, main="NDVI Change yearly average", range=c(-0.3,0.3))
  
 lines(vect(polygonDataWGS84), col="black", lwd=2)
 ```
 
-```{r}
-library(writexl)
 
-# Filtrera ldsf_combined för att få lok_chepp_filtered
-lok_chepp_filtered <- subset(ldsf_combined, site %in% c("Chepareria", "Lokiriama"))
 
-# Ange sökvägen och filnamnet där du vill spara Excel-filen för den filtrerade datan
-excel_file_path_filtered <- "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/lok_chepp_filtered.xlsx"
 
-# Ange sökvägen och filnamnet där du vill spara Excel-filen för hela datan
-excel_file_path_combined <- "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/ldsf_combined.xlsx"
-
-# Spara den filtrerade datan (lok_chepp_filtered) som en Excel-fil
-write_xlsx(lok_chepp_filtered, path = excel_file_path_filtered)
-
-# Spara hela datan (ldsf_combined) som en Excel-fil
-write_xlsx(ldsf_combined, path = excel_file_path_combined)
-
-#STÄDA DATA TILL TOMAS
-ldsf_combined_spatial <- ldsf_combined
-coordinates(ldsf_combined_spatial) <- ~longitude + latitude
-proj4string(ldsf_combined_spatial) <- CRS("+proj=longlat +datum=WGS84")
-
-ldsf_combined_spatial <- vect(ldsf_combined_spatial)
-
-livestock_cafe <- terra::extract(rasterLayer, ldsf_combined_spatial, bind = TRUE)
-
-erosion_data <- terra::extract(erosion, ldsf_combined_spatial, bind = TRUE)
-
-soc_chepp_data <- terra::extract(soc_chepp, ldsf_combined_spatial, bind=TRUE)
-
-livestock_cafe_df <- as.data.frame(livestock_cafe_df)
-erosion_data_df <- as.data.frame(erosion_data_df)
-soc_chepp_data_df <- as.data.frame(soc_chepp_data)
-
-combined_df <- cbind(livestock_cafe_df_df, erosion_data_df_df)
-final_combined_df <- cbind(combined_df, soc_chepp_data_df)
-
-unika_kolumner <- names(final_combined_df)[!duplicated(names(final_combined_df))]
-
-filtrerad_df <- final_combined_df[, unika_kolumner]
-
-cleaned_df <- filtrerad_df %>%
-  dplyr::select(LC, viserosion1, viserosion2, viserosion3, viserosion4, severeero,
-                herb_cov_total, plot, site, cluster, year,
-                dplyr::matches("^20"), dplyr::matches("^chep")) %>%
-  distinct() %>%
-  filter(site == "Chepareria") %>%
-  # Lägg till "NDVI" framför kolumnnamn som börjar med "20"
-  dplyr::rename_with(~ifelse(grepl("^20", .x), paste0("NDVI ", .x), .x), starts_with("20"))
-
-# Visa de första raderna för att kontrollera ändringarna
-head(cleaned_df)
-
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2020_StackedModel"] <- "SOC 2020"
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2021_StackedModel"] <- "SOC 2021"
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2022_StackedModel"] <- "SOC 2022"
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_predsoc_2023_StackedModel"] <- "SOC 2023"
-
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "Erosion 2020"
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "Erosion 2021"
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "Erosion 2022"
-colnames(cleaned_df)[colnames(cleaned_df) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "Erosion 2023"
-
-```
 
 ```{r}
 
-library(openxlsx)
 
-ls_in_out_melt_lok_copy <- data.frame(ls_in_out_melt_lok)
-ls_in_out_melt_lok_copy <- dplyr::select(ls_in_out_melt_lok_copy, -c(Month,ID))
-ls_in_out_melt_lok_copy$LCID <- 3
+merged_dataset_erosion <- merged_dataset_erosion %>%
+  mutate(LC = as.factor(LC),
+         LCID = as.factor(LCID),
+         after = factor(if_else(Year > 2021, "1", "0")))
 
-ls_in_out_melt_annex_copy <- data.frame(ls_in_out_melt_annex)
-ls_in_out_melt_annex_copy <- dplyr::select(ls_in_out_melt_annex_copy, -c(Month,ID,Time))
-ls_in_out_melt_annex_copy$LCID <- 2
+model_erosion2 <- lmer(Erosion ~ LC * after + (1 | LCID), data = merged_dataset_erosion)
 
-ls_in_out_melt_copy <- data.frame(ls_in_out_melt)
-ls_in_out_melt_copy <- dplyr::select(ls_in_out_melt_copy, -c(Month,ID,Time))
-ls_in_out_melt_copy$LCID <- 1
+predicted_erosion <- ggpredict(model_erosion2, terms = c("after", "LC"))
 
-merged_dataset_ndvi <- rbind(ls_in_out_melt_lok_copy, ls_in_out_melt_annex_copy, ls_in_out_melt_copy)
+ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+  geom_line() +
+  labs(title = "Predicted Erosion over Time by LC",
+       x = "Time after Start (Years)",
+       y = "Predicted Erosion",
+       color = "LC") +
+  theme_minimal() +
+  scale_color_manual(values = c("1" = "blue", "0" = "red"))
 
-merged_dataset_ndvi <- separate(merged_dataset_ndvi, YearMonth, into = c("Year", "Month"), sep = "-", remove = FALSE, convert = TRUE)
 
-write.xlsx(merged_dataset_ndvi , "merged_dataset_ndvi.xlsx")
-write.xlsx(merged_dataset_ndvi, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_ndvi.xlsx")
+plot_erosion_merged <- plot_model(model_erosion2, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC erosion before and after")
+
+print(plot_erosion_merged)
+
 
 
 ```
-
 ```{r}
-main_soc_in_out_long_copy <- data.frame(main_soc_in_out_long)
-main_soc_in_out_long_copy<- dplyr::select(main_soc_in_out_long_copy, -c(E1, fitted,ID,Time))
-main_soc_in_out_long_copy$LCID <- 1
-
-annex_soc_in_out_long_copy <- data.frame(annex_soc_in_out_long)
-annex_soc_in_out_long_copy<- dplyr::select(annex_soc_in_out_long_copy, -c(ID))
-annex_soc_in_out_long_copy$LCID <- 2
-
-lok_soc_in_out_long_copy <- data.frame(lok_soc_in_out_long)
-lok_soc_in_out_long_copy<- dplyr::select(lok_soc_in_out_long_copy, -c(ID))
-lok_soc_in_out_long_copy$LCID <- 3
-
-merged_dataset_soc <- rbind(main_soc_in_out_long_copy , annex_soc_in_out_long_copy, lok_soc_in_out_long_copy)
-
-write.xlsx(merged_dataset_soc , "merged_dataset_soc.xlsx")
-write.xlsx(merged_dataset_soc , "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_soc.xlsx")
-
+model_erosion3 <- lmer(Erosion ~ Year * LC + (1|LCID) + (1|LCID:LC), data = merged_dataset_erosion)
 
 ```
 
-```{r}
-erosion_in_out_long_copy <- data.frame(erosion_in_out_long)
-erosion_in_out_long_copy<- dplyr::select(erosion_in_out_long_copy, -c(E1, fitted,ID,Time))
-erosion_in_out_long_copy$LCID <- 1
-
-annex_erosion_in_out_long_copy <- data.frame(annex_erosion_in_out_long)
-annex_erosion_in_out_long_copy<- dplyr::select(annex_erosion_in_out_long_copy, -c(Time, ID))
-annex_erosion_in_out_long_copy$LCID <- 2
-
-lok_erosion_in_out_long_copy <- data.frame(lok_erosion_in_out_long)
-lok_erosion_in_out_long_copy<- dplyr::select(lok_erosion_in_out_long_copy, -c(ID))
-lok_erosion_in_out_long_copy$LCID <- 3
-
-merged_dataset_erosion <- rbind(erosion_in_out_long_copy , annex_erosion_in_out_long_copy, lok_erosion_in_out_long_copy)
-
-write.xlsx(merged_dataset_erosion, "merged_dataset_erosion.xlsx")
-write.xlsx(merged_dataset_erosion, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_erosion.xlsx")
-
-```
 
 
 
