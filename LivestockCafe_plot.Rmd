@@ -14,6 +14,7 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
 ```
 
 ```{r libraries, paged.print=FALSE}
+library(openxlsx)
 library(sjPlot)
 library(ggplot2)
 library(cowplot) 
@@ -168,7 +169,7 @@ leaflet(ldsf_combined) %>%
     lat = ~latitude,
     radius = 2,
     stroke = TRUE,
-    color = "blue", # DT plots in blue
+    color = "#0073C2FF",
     label = ~paste0(site, cluster, ".", plot)
   ) %>%
   addCircleMarkers(
@@ -177,10 +178,11 @@ leaflet(ldsf_combined) %>%
     lat = ~latitude,
     radius = 2,
     stroke = TRUE,
-    color = "red", # LC plots in red
+    color = "#F8766D", # LC plots in red
     label = ~paste0(site, cluster, ".", plot)
   ) %>%
   addLayersControl(baseGroups = c("General", "Topo", "Satelite"))
+
 
 
 
@@ -355,7 +357,9 @@ if (nrow(ldsf_specific_clusters_chepp) > 0) {
     facet_wrap(~ cluster, scales = "free_y") +
     labs(x = "viserosion", y = "Density") +
     geom_vline(data = cluster_means_specific, aes(xintercept = Meanviserosion), linetype = "dashed", color = "black", size = 1) +
-    geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1)
+    geom_vline(xintercept = mean_vis_erosion_specific, color = "#F8766D", linetype = "dashed", size = 1)
+  
+
 
   print(g)
   
@@ -829,7 +833,6 @@ month_names <- names(rasterLayer_lok)
 livestock_cafe_tbl_lok <- as_tibble(livestock_cafe_lok)
 outside_livestock_cafe_tbl_lok <- as_tibble(outside_livestock_cafe_lok)
 
-
 #Add dummie-column where Livestock cafe=1 Non Livetosck cafe=0
 livestock_cafe_tbl_lok$LC<- 1
 outside_livestock_cafe_tbl_lok$LC <- 0
@@ -839,76 +842,11 @@ ls_in_out_lok= bind_rows(livestock_cafe_tbl_lok , outside_livestock_cafe_tbl_lok
 ls_in_out_melt_lok <- pivot_longer(ls_in_out_lok, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
 ls_in_out_melt_lok$Month <- as.Date(paste0(ls_in_out_melt_lok$Month, " 01"), format="%Y %m %d")
 
-# Count NA per month and LC
-prop_na_per_month_lc <- ls_in_out_melt_lok %>%
-  group_by(Month, LC) %>%
-  summarise(Prop_NA = mean(is.na(NDVI))) %>%
-  ungroup()
-
-#Filter just the months where NA is <= 70%, for each LC
-valid_months_lc <- prop_na_per_month_lc %>%
-  filter(Prop_NA <= 0.7) %>%
-  dplyr::select(Month, LC)
-
-# Calculate monthly average
-monthly_mean_ndvi_lok <- ls_in_out_melt_lok %>%
-  group_by(Month, LC) %>%
-  summarise(Mean_NDVI_month_lok = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-#Calculate yearly average
-annual_mean_ndvi_lok <- ls_in_out_melt_lok %>%
-  mutate(Year = format(Month, "%Y")) %>% 
-  group_by(Year, LC) %>%
-  summarise(Mean_NDVI_year_lok = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-# Just plot months where less than 70% of pixels are NA
-plot_data <- monthly_mean_ndvi_lok %>%
-  inner_join(valid_months_lc, by = c("Month", "LC"))
-
-# Plot just the months where less than 70% of pixels are NA
-ggplot(plot_data, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "Monthly average NDVI (filtered)",
-       x = "Månad",
-       y = "Genomsnittlig NDVI",
-       color = "LC")
-
-# # Plot monthly, with all months
-# ggplot(monthly_mean_ndvi_lok, aes(x = Month, y = Mean_NDVI_month_lok, color = factor(LC))) +
-#   geom_line() +  # Skapa en linjeplot
-#   geom_point() + # Lägg till punkter för varje datapunkt
-#   scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje LC
-#   theme_minimal() + # Använd ett minimalt tema
-#   labs(title = "The Average NDVI per Month, Lokiriama",
-#        x = "Month",
-#        y = "The average NDVI",
-#        color = "LC") 
-
-# Plot yearly
-ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + # Ange färger för varje LC
-  theme_minimal() + # Använd ett minimalt tema
-  labs(title = "NDVI on a yearly average, Lokiriama",
-       x = "Year",
-       y = "The average NDVI",
-       color = "LC") # Lägg till titel och namn på axlarna samt anpassa legendtitel
-
-
-
 ```
 
 ```{r}
 
 rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
-
-
 polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
 #raster_df <- as.data.frame(rasterLayer, xy=TRUE)
 
@@ -943,48 +881,12 @@ outside_livestock_cafe_tbl <- as_tibble(outside_livestock_cafe)
 livestock_cafe_tbl$LC <- 1
 outside_livestock_cafe_tbl$LC <- 0
 
-
 ls_in_out = bind_rows(livestock_cafe_tbl , outside_livestock_cafe_tbl)
-
 ls_in_out_melt <- pivot_longer(ls_in_out, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
-
 ls_in_out_melt$Month <- as.Date(paste0(ls_in_out_melt$Month, " 01"), format="%Y %m %d")
 
-# Calculate mean for each month and inside and outside LC
-monthly_mean_ndvi <- ls_in_out_melt %>%
-  group_by(Month, LC) %>%
-  summarise(Mean_NDVI_month = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-# Calculate mean for each year and inside and outside LC
-annual_mean_ndvi <- ls_in_out_melt %>%
-  mutate(Year = format(Month, "%Y")) %>%
-  group_by(Year, LC) %>%
-  summarise(Mean_NDVI_year = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
-
-
-ggplot(monthly_mean_ndvi, aes(x = Month, y = Mean_NDVI_month, color = factor(LC))) +
-  geom_line() +  
-  geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "Monthly Average NDVI, Main Livestock Cafe",
-       x = "Month",
-       y = "Average NDVI",
-       color = "LC") 
-
-ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(LC), group = LC)) +
-  geom_line() +  
-  geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "Yearly Average NDVI, Main Livestock Cafe",
-       x = "Year",
-       y = "The average NDVI",
-       color = "LC") 
-
 ```
+
 ```{r}
 
 polygon_data_chepp_annex <- st_read("../Polygons/LC_Polygon_Annex.geojson")
@@ -1014,64 +916,153 @@ outside_livestock_cafe_tbl_annex$LC <- 0
 
 ls_in_out_annex = bind_rows(livestock_cafe_tbl_annex , outside_livestock_cafe_tbl_annex)
 ls_in_out_melt_annex <- pivot_longer(ls_in_out_annex, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
-
-
 ls_in_out_melt_annex$Month <- as.Date(paste0(ls_in_out_melt_annex$Month, " 01"), format="%Y %m %d")
+```
+```{r}
 
-monthly_mean_ndvi_annex <- ls_in_out_melt_annex%>%
-  group_by(Month, LC) %>%
-  summarise(Mean_NDVI_month_annex = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
+ls_in_out_melt_lok_copy <- data.frame(ls_in_out_melt_lok)
+ls_in_out_melt_lok_copy$LCID <- "A"
 
-annual_mean_ndvi_annex <- ls_in_out_melt_annex %>%
-  mutate(Year = format(Month, "%Y")) %>% 
-  group_by(Year, LC) %>%
-  summarise(Mean_NDVI_year_annex = mean(NDVI, na.rm = TRUE)) %>%
-  ungroup()
+ls_in_out_melt_copy <- data.frame(ls_in_out_melt)
+ls_in_out_melt_copy$LCID <- "B"
+
+ls_in_out_melt_annex_copy <- data.frame(ls_in_out_melt_annex)
+ls_in_out_melt_annex_copy$LCID <- "C"
 
 
+merged_dataset_ndvi <- rbind(ls_in_out_melt_lok_copy, ls_in_out_melt_annex_copy, ls_in_out_melt_copy)
 
-ggplot(monthly_mean_ndvi_annex, aes(x = Month, y = Mean_NDVI_month_annex, color = factor(LC))) +
-  geom_line() +  
+# Antag att du har en kolumn `YearMonth` som ser ut som "2020-01"
+merged_dataset_ndvi <- merged_dataset_ndvi %>%
+  separate(Month, into = c("Year", "Month"), sep = "-", remove = FALSE, convert = TRUE) %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-")))
+
+
+# write.xlsx(merged_dataset_ndvi , "merged_dataset_ndvi.xlsx")
+# write.xlsx(merged_dataset_ndvi, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_ndvi.xlsx")
+
+```
+
+```{r}
+
+merged_ndvi_chepp <- merged_dataset_ndvi %>%
+  filter(LCID %in% c("B", "C")) 
+
+
+# Plotta månatliga medelvärden
+ggplot(monthly_mean_ndvi, aes(x = Date, y = Mean_NDVI_month, color = factor(LC))) +
+  geom_line() + 
   geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
   theme_minimal() + 
-  labs(title = "Monthly Average NDVI, Annex Livestock Cafe",
-       x = "Month",
-       y = "The average NDVI",
-       color = "LC") 
+  labs(title = "Månatligt genomsnitt av NDVI",
+       x = "Månad",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
 
-ggplot(annual_mean_ndvi_annex, aes(x = Year, y = Mean_NDVI_year_annex, color = factor(LC), group = LC)) +
-  geom_line() +  
+# Plotta årliga medelvärden
+ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(LC), group = LC)) +
+  geom_line() + 
   geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
   theme_minimal() + 
-  labs(title = "Yearly Average NDVI, Annex Livestock Cafe",
-       x = "Year",
-       y = "The average NDVI",
+  labs(title = "Årligt genomsnitt av NDVI",
+       x = "År",
+       y = "Genomsnittlig NDVI",
        color = "LC")
 
 
 ```
-```{r}
-ls_in_out_melt_lok$YearMonth <- format(ls_in_out_melt_lok$Month, "%Y-%m")
 
-ggplot(ls_in_out_melt_lok, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
+
+
+```{r}
+
+merged_ndvi_lok <- merged_dataset_ndvi %>%
+  filter(LCID %in% c("A")) 
+
+
+# För prop_na_per_month_lc
+prop_na_per_month_lc <- merged_ndvi_lok %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-"))) %>%
+  group_by(Date, LC) %>%
+  summarise(Prop_NA = mean(is.na(NDVI))) %>%
+  ungroup()
+
+# Filtrera bara de månader där NA är <= 70%, för varje LC
+valid_months_lc <- prop_na_per_month_lc %>%
+  filter(Prop_NA <= 0.7) %>%
+  dplyr::select(Date, LC)
+
+# För monthly_mean_ndvi_lok
+monthly_mean_ndvi_lok <- merged_ndvi_lok %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-"))) %>%
+  group_by(Date, LC) %>%
+  summarise(Mean_NDVI_month_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Nu när båda dataramarna har en 'Date' kolumn, använd den för att joina
+filtered_monthly_mean_ndvi_lok <- monthly_mean_ndvi_lok %>%
+  inner_join(valid_months_lc, by = c("Date", "LC"))
+
+# Plotta månatliga medelvärden med filtrering
+ggplot(filtered_monthly_mean_ndvi_lok, aes(x = Date, y = Mean_NDVI_month_lok, color = factor(LC))) +
+  geom_line() + 
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() +
+  labs(title = "Genomsnittlig NDVI per månad, filtrerad",
+       x = "Månad",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+# Beräkna årliga medelvärden
+annual_mean_ndvi_lok <- merged_ndvi_lok %>%
+  group_by(Year, LC) %>%
+  summarise(Mean_NDVI_year_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+# Plotta årliga medelvärden
+ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = factor(LC), group = LC)) +
+  geom_line() + 
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Årligt genomsnitt av NDVI",
+       x = "År",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+
+
+```
+
+
+```{r}
+
+merged_ndvi_chepp <- merged_ndvi_chepp %>%
+  mutate(YearMonth = format(Date, "%Y-%m"))
+
+# Använd 'YearMonth' för x-axeln i din boxplot
+ggplot(merged_ndvi_chepp, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
   geom_boxplot() +
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "Monthly NDVI, Livestock Cafe Lokiriama",
+  labs(title = "Monthly NDVI, Livestock Cafe Cheppareria",
        x = "Month",
        y = "NDVI",
        fill = "LC") + 
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
 
 ```
 
 ```{r}
-ls_in_out_melt$YearMonth <- format(ls_in_out_melt$Month, "%Y-%m")
+merged_ndvi_lok <- merged_ndvi_lok %>%
+  mutate(YearMonth = format(Date, "%Y-%m"))
 
-ggplot(ls_in_out_melt, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
+ggplot(merged_ndvi_lok, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
   geom_boxplot() + 
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
@@ -1079,37 +1070,17 @@ ggplot(ls_in_out_melt, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
        x = "Month",
        y = "NDVI",
        fill = "LC") + 
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
 
 ```
 
-
 ```{r}
-ls_in_out_melt_annex$YearMonth <- format(ls_in_out_melt_annex$Month, "%Y-%m")
 
-ggplot(ls_in_out_melt_annex, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
-  geom_boxplot() + 
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "Monthly NDVI, Annex LC",
-       x = "Month",
-       y = "NDVI",
-       fill = "LC") + 
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
-
-```
-
-
-```{r}
 
 erosion_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2020_StackedModel.tif")
-
 erosion_chepp_2021  <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2021_StackedModel.tif")
-
 erosion_chepp_2022 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2022_StackedModel.tif")
-
 erosion_chepp_2023 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2023_StackedModel.tif")
-
 erosion = c(erosion_chepp_2020, erosion_chepp_2021, erosion_chepp_2022, erosion_chepp_2023)
 
 #Extract data
@@ -1134,47 +1105,7 @@ erosion_in_out_long <- pivot_longer(erosion_in_out,
                                     names_to = "Year", 
                                     values_to = "Erosion")
 
-
-annual_mean_erosion <- erosion_in_out_long %>%
-  group_by(Year, LC) %>% 
-  summarise(mean_annual_erosion = mean(Erosion, na.rm = TRUE)) %>%
-  ungroup()
-
-
-ggplot(annual_mean_erosion, aes(x = Year, y = mean_annual_erosion, color = factor(LC), group = LC)) +
-  geom_line() +  # Skapa en linjeplot
-  geom_point() + # Lägg till punkter för varje datapunkt
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "Erosion  on a yearly average Cheppareria, Main Livestock Cafe",
-       x = "Year",
-       y = "Likelihood of servere erosion ",
-       color = "LC") 
-
-# Plotta boxplott för varje år
-ggplot(erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
-  geom_boxplot() + 
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "Erosion Main LC",
-       x = "Year",
-       y = "Erosion",
-       fill = "LC") + 
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
-
-
-# Calculate change, before and after (just to have it in numbers)
-
-change_LC1_main <- filter(annual_mean_erosion, LC == 1 & Year %in% c("2020", "2023")) %>%
-  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
-
-change_LC0_main <- filter(annual_mean_erosion, LC == 0 & Year %in% c("2020", "2023")) %>%
-  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
-
-
-
 ```
-
 
 ```{r}
 #Extract data
@@ -1205,32 +1136,7 @@ annual_mean_erosion_annex <- annex_erosion_in_out_long %>%
   summarise(mean_annual_erosion_annex = mean(Erosion, na.rm = TRUE)) %>%
   ungroup()
 
-
-ggplot(annual_mean_erosion_annex, aes(x = Year, y = mean_annual_erosion_annex, color = factor(LC), group = LC)) +
-  geom_line() +  
-  geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "Erosion on a yearly average Cheppareria, Annex Livestock Cafe",
-       x = "Year",
-       y = "Likelihood of servere erosion ",
-       color = "LC") 
-
-
-# Plot box plot
-ggplot(annex_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
-  geom_boxplot() + 
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "Erosion Annex",
-       x = "Year",
-       y = "Erosion",
-       fill = "LC") + 
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
-
-
 ```
-
 
 ```{r}
 #Extract data
@@ -1261,9 +1167,80 @@ lok_erosion_in_out_long <- pivot_longer(lok_erosion_in_out,
                                     cols = c(`2020`, `2021`, `2022`, `2023`), 
                                     names_to = "Year", 
                                     values_to = "Erosion")
+                                    
+                                    
+```
 
 
-annual_mean_erosion_lok <- lok_erosion_in_out_long %>%
+```{r}
+
+lok_erosion_in_out_long_copy <- data.frame(lok_erosion_in_out_long)
+lok_erosion_in_out_long_copy<- dplyr::select(lok_erosion_in_out_long_copy, -c(ID))
+lok_erosion_in_out_long_copy$LCID <- "A"
+
+erosion_in_out_long_copy <- data.frame(erosion_in_out_long)
+erosion_in_out_long_copy<- dplyr::select(erosion_in_out_long_copy, -c(ID))
+erosion_in_out_long_copy$LCID <- "B"
+
+annex_erosion_in_out_long_copy <- data.frame(annex_erosion_in_out_long)
+annex_erosion_in_out_long_copy<- dplyr::select(annex_erosion_in_out_long_copy, -c(ID))
+annex_erosion_in_out_long_copy$LCID <- "C"
+
+
+merged_dataset_erosion <- rbind(erosion_in_out_long_copy , annex_erosion_in_out_long_copy, lok_erosion_in_out_long_copy)
+
+# write.xlsx(merged_dataset_erosion, "merged_dataset_erosion.xlsx")
+# write.xlsx(merged_dataset_erosion, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_erosion.xlsx")
+
+```
+
+
+```{r}
+merged_erosion_chepp <- merged_dataset_erosion %>%
+  filter(LCID %in% c("B", "C")) 
+
+annual_mean_erosion <- merged_erosion_chepp  %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+ggplot(annual_mean_erosion, aes(x = Year, y = mean_annual_erosion, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Erosion  on a yearly average Cheppareria, Main Livestock Cafe",
+       x = "Year",
+       y = "Likelihood of servere erosion ",
+       color = "LC") 
+
+# Plotta boxplott för varje år
+ggplot(merged_erosion_chepp, aes(x = Year, y = Erosion, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Erosion Main LC",
+       x = "Year",
+       y = "Erosion",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+
+# Calculate change, before and after (just to have it in numbers)
+
+change_LC1_main <- filter(annual_mean_erosion, LC == 1 & Year %in% c("2020", "2023")) %>%
+  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
+
+change_LC0_main <- filter(annual_mean_erosion, LC == 0 & Year %in% c("2020", "2023")) %>%
+  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
+
+```
+
+```{r}
+merged_erosion_lok <- merged_dataset_erosion %>%
+  filter(LCID %in% c("A")) 
+
+annual_mean_erosion_lok <- merged_erosion_lok %>%
   group_by(Year, LC) %>% 
   summarise(mean_annual_erosion_lok = mean(Erosion, na.rm = TRUE)) %>%
   ungroup()
@@ -1272,14 +1249,14 @@ annual_mean_erosion_lok <- lok_erosion_in_out_long %>%
 ggplot(annual_mean_erosion_lok, aes(x = Year, y = mean_annual_erosion_lok, color = factor(LC), group = LC)) +
   geom_line() +  
   geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
+  scale_color_manual(values = c("1" = "#00BFC4", "0" = "#F8766D")) + 
   theme_minimal() + 
   labs(title = "Erosion on a yearly average, Lokiriama Livestock Cafe",
        x = "Year",
        y = "Likelihood of servere erosion ",
        color = "LC") 
 
-ggplot(lok_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
+ggplot(merged_erosion_lok, aes(x = Year, y = Erosion, fill = factor(LC))) +
   geom_boxplot() + 
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
@@ -1287,7 +1264,8 @@ ggplot(lok_erosion_in_out_long, aes(x = Year, y = Erosion, fill = factor(LC))) +
        x = "Year",
        y = "Erosion",
        fill = "LC") +
-  scale_fill_manual(values = c("1" = "blue", "0" = "red"))
+  scale_fill_manual(values = c("1" = "#00BFC4", "0" = "#F8766D"))
+
 
 ```
 
@@ -1325,34 +1303,8 @@ main_soc_in_out_long <- pivot_longer(main_soc_in_out,
                                     names_to = "Year", 
                                     values_to = "SOC")
 
-annual_mean_main_soc <- main_soc_in_out_long %>%
-  group_by(Year, LC) %>% 
-  summarise(mean_main_soc = mean(SOC, na.rm = TRUE)) %>%
-  ungroup()
-
-
-ggplot(annual_mean_main_soc, aes(x = Year, y = mean_main_soc, color = factor(LC), group = LC)) +
-  geom_line() +  
-  geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "SOC on a yearly average, Main Livestock Cafe",
-       x = "Year",
-       y = "SOC ",
-       color = "LC") 
-
-
-ggplot(main_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
-  geom_boxplot() + 
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "SOC Main Livestock Cafe",
-       x = "Year",
-       y = "SOC",
-       fill = "LC") +
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
-
 ```
+
 
 ```{r}
 annex_soc <- terra::extract(soc_chepp, polygonDataWGS84_annex, bind = TRUE)
@@ -1378,35 +1330,6 @@ annex_soc_in_out_long <- pivot_longer(annex_soc_in_out,
                                     cols = c(`2020`, `2021`, `2022`, `2023`), 
                                     names_to = "Year", 
                                     values_to = "SOC")
-
-
-
-annual_mean_annex_soc <- annex_soc_in_out_long %>%
-  group_by(Year, LC) %>% 
-  summarise(mean_annex_soc = mean(SOC, na.rm = TRUE)) %>%
-  ungroup()
-
-
-ggplot(annual_mean_annex_soc, aes(x = Year, y = mean_annex_soc, color = factor(LC), group = LC)) +
-  geom_line() +  
-  geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "SOC yearly average, Annex Livestock Cafe",
-       x = "Year",
-       y = "SOC ",
-       color = "LC") 
-
-
-ggplot(annex_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
-  geom_boxplot() + 
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "SOC Annex Livestock Cafe",
-       x = "Year",
-       y = "SOC",
-       fill = "LC") + 
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
 
 ```
 
@@ -1442,61 +1365,6 @@ lok_soc_in_out_long <- pivot_longer(lok_soc_in_out,
                                     names_to = "Year", 
                                     values_to = "SOC")
 
-annual_mean_lok_soc <- lok_soc_in_out_long %>%
-  group_by(Year, LC) %>% 
-  summarise(mean_lok_soc = mean(SOC, na.rm = TRUE)) %>%
-  ungroup()
-
-
-ggplot(annual_mean_lok_soc, aes(x = Year, y = mean_lok_soc, color = factor(LC), group = LC)) +
-  geom_line() +  
-  geom_point() + 
-  scale_color_manual(values = c("1" = "blue", "0" = "red")) + 
-  theme_minimal() + 
-  labs(title = "SOC yearly average, Lokiriama Livestock Cafe",
-       x = "Year",
-       y = "SOC ",
-       color = "LC") 
-
-ggplot(lok_soc_in_out_long , aes(x = Year, y = SOC, fill = factor(LC))) +
-  geom_boxplot() + 
-  theme_minimal() + 
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
-  labs(title = "SOC Lokiriama Livestock Cafe",
-       x = "Year",
-       y = "SOC",
-       fill = "LC") +
-  scale_fill_manual(values = c("1" = "blue", "0" = "red")) 
-
-```
-
-```{r}
-
-#FLYTTA UPP DENNA DEL OCH ANVÄND DET TILL OVAN OCKSÅ
-
-library(openxlsx)
-
-ls_in_out_melt_lok_copy <- data.frame(ls_in_out_melt_lok)
-ls_in_out_melt_lok_copy <- dplyr::select(ls_in_out_melt_lok_copy, -c(Month,ID))
-ls_in_out_melt_lok_copy$LCID <- "A"
-
-ls_in_out_melt_copy <- data.frame(ls_in_out_melt)
-ls_in_out_melt_copy <- dplyr::select(ls_in_out_melt_copy, -c(Month,ID,Time,year))
-ls_in_out_melt_copy$LCID <- "B"
-
-ls_in_out_melt_annex_copy <- data.frame(ls_in_out_melt_annex)
-ls_in_out_melt_annex_copy <- dplyr::select(ls_in_out_melt_annex_copy, -c(Month,ID))
-ls_in_out_melt_annex_copy$LCID <- "C"
-
-
-merged_dataset_ndvi <- rbind(ls_in_out_melt_lok_copy, ls_in_out_melt_annex_copy, ls_in_out_melt_copy)
-
-merged_dataset_ndvi <- separate(merged_dataset_ndvi, YearMonth, into = c("Year", "Month"), sep = "-", remove = FALSE, convert = TRUE)
-
-# write.xlsx(merged_dataset_ndvi , "merged_dataset_ndvi.xlsx")
-# write.xlsx(merged_dataset_ndvi, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_ndvi.xlsx")
-
-
 ```
 
 ```{r}
@@ -1506,7 +1374,7 @@ lok_soc_in_out_long_copy<- dplyr::select(lok_soc_in_out_long_copy, -c(ID))
 lok_soc_in_out_long_copy$LCID <- "A"
 
 main_soc_in_out_long_copy <- data.frame(main_soc_in_out_long)
-main_soc_in_out_long_copy<- dplyr::select(main_soc_in_out_long_copy, -c(E1, fitted,ID,Time))
+main_soc_in_out_long_copy<- dplyr::select(main_soc_in_out_long_copy, -c(ID))
 main_soc_in_out_long_copy$LCID <- "B"
 
 annex_soc_in_out_long_copy <- data.frame(annex_soc_in_out_long)
@@ -1519,45 +1387,88 @@ merged_dataset_soc <- rbind(main_soc_in_out_long_copy , annex_soc_in_out_long_co
 # write.xlsx(merged_dataset_soc , "merged_dataset_soc.xlsx")
 # write.xlsx(merged_dataset_soc , "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_soc.xlsx")
 
+```
+
+
+```{r}
+
+merged_soc_chepp <- merged_dataset_soc %>%
+  filter(LCID %in% c("B", "C"))
+
+annual_mean_soc <- merged_soc_chepp %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+ggplot(annual_mean_soc, aes(x = Year, y = mean_annual_soc, color = factor(LC), group = LC)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "SOC on a yearly average, Main Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+
+ggplot(merged_soc_chepp, aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "SOC Main Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") +
+   scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+
+
+```
+
+
+```{r}
+
+merged_soc_lok <- merged_dataset_soc %>%
+  filter(LCID %in% c("A"))
+
+annual_mean_lok_soc <- merged_dataset_soc%>%
+  group_by(Year, LC) %>% 
+  summarise(mean_lok_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_lok_soc, aes(x = Year, y = mean_lok_soc, color = factor(LC), group = LC)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "SOC yearly average, Lokiriama Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+ggplot(merged_dataset_soc, aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "SOC Lokiriama Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
 
 ```
 
 ```{r}
 
-lok_erosion_in_out_long_copy <- data.frame(lok_erosion_in_out_long)
-lok_erosion_in_out_long_copy<- dplyr::select(lok_erosion_in_out_long_copy, -c(ID))
-lok_erosion_in_out_long_copy$LCID <- "A"
-
-erosion_in_out_long_copy <- data.frame(erosion_in_out_long)
-erosion_in_out_long_copy<- dplyr::select(erosion_in_out_long_copy, -c(E1, fitted,ID,Time))
-erosion_in_out_long_copy$LCID <- "B"
-
-annex_erosion_in_out_long_copy <- data.frame(annex_erosion_in_out_long)
-annex_erosion_in_out_long_copy<- dplyr::select(annex_erosion_in_out_long_copy, -c(ID))
-annex_erosion_in_out_long_copy$LCID <- "C"
-
-
-merged_dataset_erosion <- rbind(erosion_in_out_long_copy , annex_erosion_in_out_long_copy, lok_erosion_in_out_long_copy)
-
-# write.xlsx(merged_dataset_erosion, "merged_dataset_erosion.xlsx")
-# write.xlsx(merged_dataset_erosion, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_erosion.xlsx")
-
-```
-
-```{r}
-library(dplyr)
-library(lubridate)
-
-merged_dataset_ndvi <- merged_dataset_ndvi %>%
+merged_ndvi_chepp<- merged_ndvi_chepp %>%
   mutate(
-    Date = as.Date(paste0(YearMonth, "-01")),
     Time = interval(start = min(Date), end = Date) / years (1)
   )
 
-merged_dataset_ndvi$LC <- factor(merged_dataset_ndvi$LC)
+merged_ndvi_chepp$LC <- factor(merged_ndvi_chepp$LC)
 
- merged_ndvi_chepp<- merged_dataset_ndvi %>%
-  filter(LCID %in% c("B", "C"))
 
 model_NDVI_interaction <- lmer(NDVI ~ LC * Time + (1 | LCID), data = merged_ndvi_chepp) 
 
@@ -1590,23 +1501,68 @@ plot_NDVI_LC <- plot_model(model_NDVI_interaction,
 print(plot_NDVI_LC)
 
 
-
- predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "LC"))
-ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
-  geom_line() +
-  labs(title = "Predicted NDVI over Time Main LC",
-      x = "Time since start (years)",
-        y = "Predicted Erosion",
-       color = "LC") +
-  theme_minimal() +
-  scale_color_manual(values = c("1" = "blue", "0" = "red"))
+# 
+#  predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "LC"))
+# ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted NDVI over Time Main LC",
+#       x = "Time since start (years)",
+#         y = "NDVI",
+#        color = "LC") +
+#   theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
 
 
 
 ```
 
 ```{r}
+LC_ndvi <- effect("LC:Time", model_NDVI_interaction)
+summary(LC_ndvi)
+ndvi <- as.data.frame(LC_ndvi)
+ndvi$Time <- as.numeric(ndvi$Time)
 
+
+theme_set(theme_sjplot())
+
+lc_plot <- ggplot(ndvi, aes(y = fit, x = Time, group = LC, color = LC, fill = LC)) +
+  geom_smooth(method = "lm", lwd = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, linetype = 0) +
+  labs(x = "Time", y = "Predicted NDVI", legend="LC") +
+  theme(
+    plot.margin = unit(c(0.5, 0.5, 1, 0.5), "cm"),
+    plot.title = element_text(size = 11, colour = "black", hjust = 0.5),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11, colour = "black", face = "bold"),
+    axis.text.y = element_text(size = 11, colour = "black"),
+    axis.title.y = element_text(size = 11, colour = "black", face = "bold"),
+    legend.title = element_text(size = 10, colour = "black", face = "bold"),
+    strip.text.x = element_text(face = "bold"),
+    legend.text = element_text(size = 10, colour = "black"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_blank(),
+    axis.ticks = element_line(size = 0.25),
+    axis.ticks.length = unit(0.10, "cm"),
+    panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+    legend.position = "right",
+    facet_wrap(vars(LC), nrow = 1)
+  ) +
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC")) +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC"))
+
+lc_plot
+
+
+
+
+
+
+
+```
+
+
+```{r}
+library(effects)
 merged_dataset_erosion$Year <- as.numeric(as.character(merged_dataset_erosion$Year))
 merged_dataset_erosion$Time <- merged_dataset_erosion$Year - min(merged_dataset_erosion$Year)
 merged_dataset_erosion$LC <- factor(merged_dataset_erosion$LC)
@@ -1648,24 +1604,68 @@ plot_erosion_LC <- plot_model(model_erosion_interaction,
 
 print(plot_erosion_LC)
 
- predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
- ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
-  geom_line() +
- labs(title = "Predicted Erosion over Time, Main LC",
-        x = "Time since start (years)",
-       y = "Predicted Erosion",
-        color = "LC") +
-   theme_minimal() +
-   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+ # predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
+ # ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+ #  geom_line() +
+ # labs(title = "Predicted Erosion over Time, Main LC",
+ #        x = "Time since start (years)",
+ #       y = "Predicted Erosion",
+ #        color = "LC") +
+ #   theme_minimal() +
+ #   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+ # 
+
+```
+
+
+```{r}
+LC_erosion <- effect("LC:Time", model_erosion_interaction)
+summary(LC_erosion)
+erosion <- as.data.frame(LC_erosion)
+LC_erosion
+
+erosion$Time <- as.numeric(erosion$Time)
+
+theme_set(theme_sjplot())
+
+plot_erosion <- ggplot(erosion, aes(y = fit, x = Time, group = LC, color = LC, fill = LC)) +
+  geom_smooth(method = "lm", lwd = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, linetype = 0) +
+  labs(x = "Time", y = "Predicted severe erosion", legend="LC") +
+  theme(
+    plot.margin = unit(c(0.5, 0.5, 1, 0.5), "cm"),
+    plot.title = element_text(size = 11, colour = "black", hjust = 0.5),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11, colour = "black", face = "bold"),
+    axis.text.y = element_text(size = 11, colour = "black"),
+    axis.title.y = element_text(size = 11, colour = "black", face = "bold"),
+    legend.title = element_text(size = 10, colour = "black", face = "bold"),
+    strip.text.x = element_text(face = "bold"),
+    legend.text = element_text(size = 10, colour = "black"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_blank(),
+    axis.ticks = element_line(size = 0.25),
+    axis.ticks.length = unit(0.10, "cm"),
+    panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+    legend.position = "right",
+    facet_wrap(vars(LC), nrow = 1)
+  ) +
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC")) +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC"))
+   
+
+plot_erosion
+
+
 
 
 ```
 
+
+
 ```{r}
 
-
 merged_dataset_soc$Year <- as.numeric(as.character(merged_dataset_soc$Year))
-
 merged_dataset_soc$Time <- merged_dataset_soc$Year - min(merged_dataset_soc$Year)
 merged_dataset_soc$LC <- factor(merged_dataset_soc$LC)
 merged_dataset_soc$Year <- factor(merged_dataset_soc$Year)
@@ -1707,16 +1707,54 @@ print(plot_soc_LC)
 
 
 
-predicted_soc <- ggpredict(model_soc_interaction, terms = c("Time", "LC"))
-ggplot( predicted_soc, aes(x = x, y = predicted, color = group)) +
-  geom_line() +
-  labs(title = "Predicted SOC over Time Main LC",
-       x = "Time since start (years)",
-      y = "Predicted SOC",
-      color = "LC") +
- theme_minimal() +
-  scale_color_manual(values = c("1" = "blue", "0" = "red"))
+# predicted_soc <- ggpredict(model_soc_interaction, terms = c("Time", "LC"))
+# ggplot( predicted_soc, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted SOC over Time Main LC",
+#        x = "Time since start (years)",
+#       y = "Predicted SOC",
+#       color = "LC") +
+#  theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
 
+
+```
+```{r}
+LC_soc <- effect("LC:Time", model_soc_interaction)
+summary(LC_soc)
+soc <- as.data.frame(LC_soc)
+LC_soc
+
+soc$Time <- as.numeric(soc$Time)
+
+theme_set(theme_sjplot())
+
+plot_soc <- ggplot(soc, aes(y = fit, x = Time, group = LC, color = LC, fill = LC)) +
+  geom_smooth(method = "lm", lwd = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, linetype = 0) +
+  labs(x = "Time", y = "Predicted SOC", legend="LC") +
+  theme(
+    plot.margin = unit(c(0.5, 0.5, 1, 0.5), "cm"),
+    plot.title = element_text(size = 11, colour = "black", hjust = 0.5),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11, colour = "black", face = "bold"),
+    axis.text.y = element_text(size = 11, colour = "black"),
+    axis.title.y = element_text(size = 11, colour = "black", face = "bold"),
+    legend.title = element_text(size = 10, colour = "black", face = "bold"),
+    strip.text.x = element_text(face = "bold"),
+    legend.text = element_text(size = 10, colour = "black"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_blank(),
+    axis.ticks = element_line(size = 0.25),
+    axis.ticks.length = unit(0.10, "cm"),
+    panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+    legend.position = "right",
+    facet_wrap(vars(LC), nrow = 1)
+  ) +
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC")) +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC"))
+
+plot_soc
 
 ```
 
@@ -1724,14 +1762,13 @@ ggplot( predicted_soc, aes(x = x, y = predicted, color = group)) +
 
 ```{r}
 
-ls_in_out_melt <- ls_in_out_melt %>%
-  mutate(year = lubridate::year(Month))
+merged_ndvi_chepp_filtered<-  merged_ndvi_chepp %>%
+  filter(Year %in% c(2020, 2023)) %>%
+    mutate(after = factor(if_else(Year == 2023, 1, 0), levels = c(0, 1)))
 
-data_filtered_ndvi <- ls_in_out_melt %>%
-  filter(year %in% c(2020, 2023)) %>%
-    mutate(after = factor(if_else(year == 2023, 1, 0), levels = c(0, 1)))
+model_ndvi_main_ba <- lm(NDVI ~ after * LC, data = merged_ndvi_chepp_filtered)
 
-model_ndvi_main_ba <- lm(NDVI ~ after * LC, data = data_filtered_ndvi)
+glimpse(merged_dataset_ndvi_filtered)
 
 performance::check_model(model_ndvi_main_ba)
 
@@ -1754,12 +1791,20 @@ print(plot_ndvi_ba)
 ```
 
 ```{r}
-main_soc_in_out_long$Year <- as.numeric(as.character(main_soc_in_out_long$Year))
-data_filtered_soc <- main_soc_in_out_long %>%
+ndvi_ba <- effect("LC:after", model_ndvi_main_ba)
+summary(ndvi_ba)
+ndvi_ba <- as.data.frame(ndvi_ba)
+ndvi_ba
+
+
+```
+
+```{r}
+merged_soc_chepp_filtered<- merged_soc_chepp %>%
   filter(Year %in% c(2020, 2023)) %>%
   mutate(after = factor(if_else(Year == 2023, 1, 0), levels = c(0, 1)))
 
-model_soc_main_ba <- lm(SOC ~ after * LC, data = data_filtered_soc)
+model_soc_main_ba <- lm(SOC ~ after * LC, data = merged_soc_chepp_filtered)
 
 performance::check_model(model_soc_main_ba)
 
@@ -1783,14 +1828,12 @@ print(plot_soc_ba)
 ```
 ```{r}
 
-data_filtered_erosion <- erosion_in_out_long %>%
-  filter(Year %in% c(2020, 2023))
+merged_erosion_chepp_filtered <- merged_erosion_chepp %>%
+  filter(Year %in% c(2020, 2023)) %>%
+  mutate(after = factor(if_else(Year == 2023, 1, 0), levels = c(0, 1)))
 
 
-data_filtered_erosion <- data_filtered_erosion %>%
-  mutate(after = factor(if_else(Year > 2021, 1, 0)))
-
-model_erosion_main_ba <- lm(Erosion ~ after * LC, data = data_filtered_erosion)
+model_erosion_main_ba <- lm(Erosion ~ after * LC, data = merged_erosion_chepp_filtered)
 
 performance::check_model(model_erosion_main_ba)
 
@@ -1811,6 +1854,7 @@ plot_erosion_ba <- plot_model(model_erosion_main_ba,
 print(plot_erosion_ba) 
 
 ```
+
 
 ```{r}
 # plot(soc_chepp_2020)
@@ -1899,52 +1943,7 @@ plot(cropped_raster_NDVI, col=colors, main="NDVI Change yearly average", range=c
 lines(vect(polygonDataWGS84), col="black", lwd=2)
 ```
 
-
-
-
-
-```{r}
-
-
-merged_dataset_erosion <- merged_dataset_erosion %>%
-  mutate(LC = as.factor(LC),
-         LCID = as.factor(LCID),
-         after = factor(if_else(Year > 2021, "1", "0")))
-
-model_erosion2 <- lmer(Erosion ~ LC * after + (1 | LCID), data = merged_dataset_erosion)
-
-predicted_erosion <- ggpredict(model_erosion2, terms = c("after", "LC"))
-
-ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
-  geom_line() +
-  labs(title = "Predicted Erosion over Time by LC",
-       x = "Time after Start (Years)",
-       y = "Predicted Erosion",
-       color = "LC") +
-  theme_minimal() +
-  scale_color_manual(values = c("1" = "blue", "0" = "red"))
-
-
-plot_erosion_merged <- plot_model(model_erosion2, 
-                            type = "est",
-                            transform = NULL,
-                            vline.color = "gray",
-                            show.values = TRUE,
-                            value.offset = 0.4,
-                            value.size = 3.5,
-                            colors = c("#CC6A70", "#22A884"),
-                            title = "LC erosion before and after")
-
-print(plot_erosion_merged)
-
-
-
-```
 ```{r}
 model_erosion3 <- lmer(Erosion ~ Year * LC + (1|LCID) + (1|LCID:LC), data = merged_dataset_erosion)
 
 ```
-
-
-
-
