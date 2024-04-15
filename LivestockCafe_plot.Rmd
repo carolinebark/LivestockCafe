@@ -1,0 +1,2050 @@
+---
+title: "LiveSockCafe_location"
+author: "Caroline Bark"
+date: "2024-02-21"
+output: html_document
+
+---
+```{r setup,echo=FALSE}
+knitr::opts_chunk$set(
+  fig.pos = "H"
+)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = FALSE)
+```
+
+```{r libraries, paged.print=FALSE}
+library(effects)
+library(openxlsx)
+library(sjPlot)
+library(ggplot2)
+library(cowplot) 
+library(patchwork)
+library(sjPlot)
+library(performance)
+library(see)
+library(lmerTest)
+library(terra)
+library(sf)
+library(terra)
+library(zoo)
+library(ggeffects)
+library(tidyverse)
+library(lubridate)
+library(sjPlot)
+library(ggplot2)
+library(cowplot) 
+library(lme4)
+library(sjPlot)
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+library(leaflet)
+library(webshot)
+library(viridis)
+library(kableExtra)
+library(knitr)
+library(readr)
+library(MASS)
+library(gridExtra)
+library(ggridges)
+library(RColorBrewer)
+library(hrbrthemes)
+library(ggthemes)
+library(tibble)
+library(treemapify)
+library(stringr)
+library(prettydoc)
+library(data.table)
+library(forcats)
+library(tidyr)
+library(gstat)
+library(sp)
+library(lme4)
+library(tidyr)
+library(RColorBrewer)
+library(Matrix)
+library(raster)
+```
+
+
+
+```{r LoadData, include=FALSE}
+
+ldsf.chep <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Chepareria_clean.csv", stringsAsFactors = TRUE))
+ldsf.loki <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Lokiriama_clean.csv", stringsAsFactors = TRUE))
+ldsf.mata.rupa <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Matany_Rupa_clean.csv", stringsAsFactors = TRUE))
+ldsf.kalama <- as_tibble(read.csv("../Data/Field data/table_plotproperties_Kalama_clean.csv"), stringsAsFactors = TRUE)
+ldsf.chep_LC <- as_tibble(read.csv("../Data/Field data/ldsf_plots_dt_LCs_clean.csv"), stringsAsFactors = TRUE)
+
+ldsf.DT <- rbind(ldsf.chep, ldsf.loki, ldsf.mata.rupa, ldsf.kalama)
+ldsf.LC <- rbind(ldsf.chep_LC)
+
+ldsf.DT <- dplyr::select(ldsf.DT, dplyr::where(~ any(!is.na(.))))
+ldsf.LC <- dplyr::select(ldsf.LC, dplyr::where(~ any(!is.na(.))))
+
+colnames(ldsf.DT) <- tolower(colnames(ldsf.DT))
+colnames(ldsf.LC) <- tolower(colnames(ldsf.LC))
+
+#Rename the site names so that it matches the ldsf.DT 
+ldsf.LC$site <- gsub("Chepararia_LC", "Chepareria", ldsf.LC$site)
+ldsf.LC$site <- gsub("Lokiriama_LC", "Lokiriama", ldsf.LC$site)
+
+ldsf.LC$cluster <- ifelse(ldsf.LC$site == "Chepareria" & ldsf.LC$plot %in% c(6, 7, 8, 9, 10) & ldsf.LC$cluster == 17, 18, ldsf.LC$cluster)
+
+
+```
+
+
+```{r LoadDataSummary, echo=TRUE}
+
+# Create a summary table for ldsf.DT
+plots.summary_dt <- ldsf.DT %>%
+  group_by(site, cluster) %>%
+  summarise(Number = n()) 
+knitr::kable(plots.summary_dt, digits = 2, caption = "Table 1. Number of sampled plots per cluster and site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+# Create a summary table for ldsf.LC
+plots.summary_lc <- ldsf.LC %>%
+  group_by(site, cluster) %>%
+  summarise(Number = n()) 
+knitr::kable(plots.summary_lc, digits = 2, caption = "Table 1. Number of sampled plots per cluster and site" ) %>%
+  kable_styling(latex_options = c("striped", "hover", "hold_position"))
+
+
+# Add a DataType column
+ldsf.DT$DataType <- 'DT' # Marking DT rows
+ldsf.LC$DataType <- 'LC' # Marking LC rows
+
+# Add ldsf.id to ldsf.LC
+
+ldsf.LC <- ldsf.LC %>%
+  mutate(ldsfid = paste(substr(site, 1, 4), cluster, plot, sep = "."))
+
+
+#Combine ldsf.DT and ldsf.LC
+ldsf_combined <- bind_rows(
+  ldsf.DT,
+  ldsf.LC
+)
+
+ldsf_combined$LC <- ifelse(ldsf_combined$cluster %in% c(17, 18), 1, 0)
+
+#glimpse(ldsf.DT)
+#glimpse(ldsf.LC)
+#glimpse(ldsf_combined)
+
+
+
+```
+```{r}
+ldsf_combined <- ldsf_combined %>%
+  mutate(
+ viserosion1 = recode(erosion1, "none" = 0, .default = 1),
+  viserosion2 = recode(erosion2, "none" = 0, .default = 1),
+  viserosion3 = recode(erosion3, "none" = 0, .default = 1),
+  viserosion4 = recode(erosion4, "none" = 0, .default = 1),
+  viserosion = viserosion1 + viserosion2 + viserosion3 + viserosion4,
+    severeero = ifelse(viserosion >= 3, 1, 0)
+  )
+
+ldsf_combined <- ldsf_combined %>%
+  mutate(
+herb_cov_total = herbcovrate1 + herbcovrate2 + herbcovrate3 + herbcovrate4)
+
+
+```
+
+
+
+
+```{r leafletplotCultMgd, fig.cap="Map 1. Location of the LDSF plots and Livestock Cafe plots"}
+leaflet(ldsf_combined) %>%
+  addProviderTiles(provider = "Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  addCircleMarkers(
+    data = ldsf_combined %>% filter(DataType == "DT"),
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 2,
+    stroke = TRUE,
+    color = "#0073C2FF",
+    label = ~paste0(site, cluster, ".", plot)
+  ) %>%
+  addCircleMarkers(
+    data = ldsf_combined %>% filter(DataType == "LC"),
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 2,
+    stroke = TRUE,
+    color = "#F8766D", # LC plots in red
+    label = ~paste0(site, cluster, ".", plot)
+  ) %>%
+  addLayersControl(baseGroups = c("General", "Topo", "Satelite"))
+
+
+
+
+```
+
+```{r erosionCalculations}
+
+#Calculate the mean of viserosion for the entire data set 
+mean_vis_erosion <- mean(ldsf_combined$viserosion, na.rm = TRUE)
+
+#Calculate the mean of viserosion for each cluster
+cluster_means <- ldsf_combined %>%
+  group_by(site, cluster) %>%
+  summarise(Meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
+  ungroup()
+
+# Calculate the prevalence of severe erosion for the entire data set 
+eros.preval.cluster <- ldsf_combined %>%
+  group_by(site, cluster, DataType) %>% 
+  summarise(
+    Totalplots = n(),
+    severeerosionplots = sum(severeero == 1),
+    .groups = 'drop'
+  ) %>%
+  mutate(Frequencysevereerosion = severeerosionplots / Totalplots)
+
+```
+
+```{r erosionGraphsBar, fig.cap="Percentage of plots with severe erosion per cluster", out.width="100%", fig.height=9}
+
+filtrerat_dataset_lok_chep <- eros.preval.cluster %>%
+  filter(site %in% c("Chepareria", "Lokiriama"))
+
+ggplot(filtrerat_dataset_lok_chep, aes(x = factor(cluster), y = Frequencysevereerosion * 100, fill = DataType)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.75), alpha = 0.9) +
+  scale_fill_manual(values = c("DT" = "#0073C2FF", "LC" = "#EFC000FF")) +
+  theme_ipsum(base_size = 14) +
+  labs(
+    title = "Percentage of Plots with Severe Erosion per Cluster",
+    x = "cluster",
+    y = "Percentage of severe erosion",
+    fill = "Data Type"
+  ) +
+  facet_wrap(~site, ncol=1, scales = "free_x") +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(angle = 0, hjust = 1, size = 12), # Rotate x-axis labels for readability
+    plot.margin = margin(10, 10, 10, 10) 
+  )
+
+ggsave(file = "../Images/erosionPrevalencePercentage.jpeg",
+       width = 20,
+       height = 40,
+       units = "cm",
+       dpi = 600)
+
+```
+
+
+
+
+```{r erosionGraph, fig.cap="The plot distribution for viserosion for each cluster in Cheppareria, with mean", out.width="100%", fig.height=9}
+
+# Filter to include only site Chepareria
+ldsf_combined_cheperaria <- ldsf_combined %>%
+  filter(site %in% c("Chepareria"))
+
+# Calculate maxviserosion and mean_vis_erosion_cheperaria 
+maxviserosion <- max(ldsf_combined_cheperaria$viserosion, na.rm = TRUE)
+mean_vis_erosion_cheperaria <- mean(ldsf_combined_cheperaria$viserosion, na.rm = TRUE)
+cluster_means_cheperaria <- ldsf_combined_cheperaria %>%
+  group_by(cluster) %>%
+  summarise(meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
+  ungroup()
+
+# plot
+if (nrow(ldsf_combined_cheperaria) > 0) {
+  g <- ldsf_combined_cheperaria %>%
+    ggplot(aes(x = viserosion)) +
+    geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
+    facet_wrap(~ cluster, scales = "free_y") +
+    labs(x = "viserosion", y = "Density") +
+    geom_vline(data = cluster_means_cheperaria, aes(xintercept = meanviserosion), linetype = "dashed", color = "black", size = 1) +
+    geom_vline(xintercept = mean_vis_erosion_cheperaria, color = "red", linetype = "dashed", size = 1)
+  
+  print(g)
+  
+} else {
+  print("No data")
+}
+
+
+
+```
+
+
+```{r}
+
+
+# Data for Chepareria site
+ldsf_long_with_none_che <- ldsf_combined_cheperaria %>%
+  pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
+  count(cluster, erosionValue) %>%
+  group_by(cluster) %>%
+  mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
+  ungroup() %>%
+  filter(erosionValue != "none")
+
+ldsf_combined_lokiriama <- ldsf_combined %>%
+  filter(site == "Lokiriama")
+
+# Data for Lokiriama site
+ldsf_long_with_none_lok <- ldsf_combined_lokiriama %>%
+  pivot_longer(cols = starts_with("erosion"), names_to = "erosionType", values_to = "erosionValue") %>%
+  count(cluster, erosionValue) %>%
+  group_by(cluster) %>%
+  mutate(TotalCount = sum(n), Percentage = n / TotalCount) %>%
+  ungroup() %>%
+  filter(erosionValue != "none")
+
+# Plot for Chepareria site
+ldsf_erosion_plot_with_percent_che <- ggplot(ldsf_long_with_none_che, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
+  geom_bar(stat = "identity", position = "stack") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = "Cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Chepareria Site")
+
+# Plot for Lokiriama site
+ldsf_erosion_plot_with_percent_lok <- ggplot(ldsf_long_with_none_lok, aes(x = as.factor(cluster), y = Percentage, fill = erosionValue)) +
+  geom_bar(stat = "identity", position = "stack") + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = "Cluster", y = "Percent of subplots with erosion", fill = "Erosion type") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set3") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  ggtitle("Lokiriama Site")
+
+# Combine both plots
+multiplot <- cowplot::plot_grid(ldsf_erosion_plot_with_percent_che, ldsf_erosion_plot_with_percent_lok, ncol = 2)
+
+print(multiplot)
+
+```
+
+
+
+```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 7, 8 and 17 Chepp", out.width="100%", fig.height=9}
+
+
+# Filter the dataset to only include data for Chepareria and clusters 7, 8, and 17
+ldsf_specific_clusters_chepp <- ldsf_combined %>%
+  filter(site == "Chepareria", cluster %in% c(7, 8, 17, 18))
+
+# Calculate maxviserosion and the global mean of viserosion for the selected clusters
+maxviserosion_specific <- max(ldsf_specific_clusters_chepp$viserosion, na.rm = TRUE)
+mean_vis_erosion_specific <- mean(ldsf_specific_clusters_chepp$viserosion, na.rm = TRUE)
+
+# Calculate the mean of viserosion for each of the selected clusters
+cluster_means_specific <- ldsf_specific_clusters_chepp%>%
+  group_by(cluster) %>%
+  summarise(Meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
+  ungroup()
+
+# plot
+if (nrow(ldsf_specific_clusters_chepp) > 0) {
+  g <- ldsf_specific_clusters_chepp %>%
+    ggplot(aes(x = viserosion)) +
+    geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
+    facet_wrap(~ cluster, scales = "free_y") +
+    labs(x = "viserosion", y = "Density") +
+    geom_vline(data = cluster_means_specific, aes(xintercept = Meanviserosion), linetype = "dashed", color = "black", size = 1) +
+    geom_vline(xintercept = mean_vis_erosion_specific, color = "#F8766D", linetype = "dashed", size = 1)
+  
+
+
+  print(g)
+  
+} else {
+  print("No data")
+}
+
+
+
+```
+```{r erosionGraph, fig.cap=" The plot distribution for viserosion for cluster 6,7, 10 and 17 Lokiriama", out.width="100%", fig.height=9}
+
+# Filtrera för att endast inkludera site Chepareria och Lokiriama
+ldsf_combined_lokiriama <- ldsf_combined %>%
+  filter(site %in% c("Lokiriama"))
+
+ldsf_specific_clusters_lok <- ldsf_combined %>%
+  filter(site == "Lokiriama", cluster %in% c(6, 7, 10, 17))
+
+
+# Calculate maxviserosion and the global mean of viserosion for the selected clusters
+mean_vis_erosion_specific <- mean(ldsf_specific_clusters_lok$viserosion, na.rm = TRUE)
+
+# Calculate the mean of viserosion for each of the selected clusters
+cluster_means_specific_lok <- ldsf_specific_clusters_lok %>%
+  group_by(cluster) %>%
+  summarise(Meanviserosion = mean(viserosion, na.rm = TRUE)) %>%
+  ungroup()
+
+g <- ldsf_specific_clusters_lok %>%
+  ggplot(aes(x = viserosion)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1, fill = "skyblue", color = "black") +
+  facet_wrap(~ cluster, scales = "free_y") +
+  labs(x = "viserosion", y = "Densitet") +
+  geom_vline(data = cluster_means_specific_lok, aes(xintercept = Meanviserosion), linetype = "dashed", color = "black", size = 1) +
+  geom_vline(xintercept = mean_vis_erosion_specific, color = "red", linetype = "dashed", size = 1)
+  # annotate("text", x = mean_vis_erosion_specific, y = 0.9, label = sprintf("Specifika kluster medel: %.2f", mean_vis_erosion_specific), color = "red", size = 3, hjust = 1) +
+  # geom_text(data = cluster_means_specific_lok, aes(x = Meanviserosion, y = 0.05, label = sprintf("%.2f", Meanviserosion)), color = "black", size = 3, vjust = 0, hjust = 0.5)
+
+print(g)
+
+ggsave(file = "../Images/erosionPrevalencePoissonChepareriaclusters7_8_17.jpeg",
+       width = 20,
+       height = 40,
+       units = "cm",
+       dpi = 600)
+
+```
+
+```{r erosionGraph, fig.cap="Semivariagram viserosion, Cheppeirera", out.width="100%", fig.height=9}
+
+# # Beräkna semivariogram för Chepareria
+# viserosion_variogram_cheperaria <- variogram(viserosion~1, data = ldsf_combined_cheperaria_spatial)
+# 
+# # Skapa en startmodell och anpassa en semivariogrammodell till de beräknade punkterna för Chepareria
+# fit_cheperaria <- fit.variogram(viserosion_variogram_cheperaria, model = vgm(1, "Sph", 1, 1))
+# 
+# # plotta både de beräknade punkterna och den anpassade modellen för Chepareria
+# plot(viserosion_variogram_cheperaria, model = fit_cheperaria, main = "Semivariogram for viserosion in Chepareria",
+#      pch = 20, col = "#FF5733", cex = 2)
+
+
+```
+
+
+
+
+```{r erosionGraph, fig.cap="Semivariagram viserosion, Lokiriama", out.width="100%", fig.height=9}
+
+
+
+# ldsf_combined_lokiriama_spatial <- ldsf_combined_lokiriama
+# 
+# 
+# coordinates(ldsf_combined_lokiriama_spatial) <- c("longitude", "latitude")
+# 
+# 
+# proj4string(ldsf_combined_lokiriama_spatial) <- CRS("+proj=longlat +datum=WGS84")
+# 
+# 
+# viserosion_variogram_lok <- variogram(viserosion ~ 1, data = ldsf_combined_lokiriama_spatial)
+# 
+# 
+# fit_lok <- fit.variogram(viserosion_variogram_lok, model = vgm(1, "Sph", 1, 1))
+# 
+# plot(viserosion_variogram_lok, model = fit_lok, main = "Semivariogram for viserosion in Lokiriama",
+#      pch = 20, col = "#FF5733", cex = 2)
+
+
+```
+
+
+```{r erosionGraph, fig.cap="Visible erosion score in each plot", out.width="100%", fig.height=9}
+
+
+pal_ero <- colorNumeric(palette = "YlOrBr", domain = c(0:4))
+
+leaflet() %>%
+  addProviderTiles(provider="Esri.WorldImagery", group = "Satelite") %>%
+  addProviderTiles(provider = "CartoDB.Positron", group = "General") %>%
+  addProviderTiles(provider = "OpenTopoMap", group = "Topo") %>%
+  # För kluster 17 och 18, gör ifyllda cirklar
+  addCircleMarkers(
+    data = ldsf_combined %>%
+      filter(cluster %in% c(17, 18)),
+    group = "cluster 17/18",
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 6,
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    fillColor = ~pal_ero(viserosion),  
+    color = ~pal_ero(viserosion),
+    fillOpacity = 1,
+    label = ~paste0(site, " ", cluster, ".", plot)
+  ) %>%
+  # För alla kluster utom 17 och 18, gör cirkelmarkörer
+  addCircleMarkers(
+    data = ldsf_combined %>%
+      filter(!cluster %in% c(17, 18)),
+    group = "Other clusters",
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = 6,
+    opacity = 0.8,
+    weight = 3,
+    stroke = TRUE,
+    color = ~pal_ero(viserosion),
+    label = ~paste0(site, " ", cluster, ".", plot)
+  ) %>%
+  addLayersControl(baseGroups = c("Satelite", "General", "Topo"),
+                   overlayGroups = c("cluster 17/18", "Other clusters")) %>%
+  addLegend(pal = pal_ero, values = c(0:4), position = "bottomright")
+
+
+```
+
+
+
+```{r}
+#glimpse(ldsf.DT)
+
+library(data.table)
+
+# Convert ldsf_combined to data.table
+setDT(ldsf_combined)
+
+melt.DT.herb <- melt(ldsf_combined,
+                     id.vars = c("site", "cluster", "plot"),
+                     measure.vars = c("herbcovrate1","herbcovrate2","herbcovrate3", "herbcovrate4"))
+
+
+melt.DT.herb[, rating := ifelse(value==0, "absent",
+                               ifelse(value==1, "<4",
+                                      ifelse(value==2, "4-15",
+                                             ifelse(value==3, "15-40",
+                                                    ifelse(value==4, "40-65", ">65")))))]
+
+# Convert rating to factor
+melt.DT.herb[, rating := factor(rating, levels = c("absent", "<4", "4-15", "15-40", "40-65", ">65"))]
+
+DT.herb.site.cluster <- melt.DT.herb %>%
+  group_by(site, cluster, rating) %>%
+  summarise(count = n(),
+            value = first(value))%>%
+  mutate(freq = (count / sum(count))) %>%
+  ungroup()
+
+```
+
+
+
+
+
+```{r erosionGraph, fig.cap="Figure Herbescus cover in Chep ", out.width="100%", fig.height=9}
+library(tidyverse)
+library(RColorBrewer)
+
+# Herbaceous cover rating per cluster in Chepareria site
+
+DT.herb.site.cluster %>%
+  filter(site == "Chepareria") %>%
+  ggplot(aes(x = reorder(rating, value), y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  scale_y_continuous(limits = c(0, 100)) + # Sätter y-axelns gränser till 0 till 100
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)") +
+  ggtitle("Herbaceous Cover Rating (%), Chepareria site") +
+  theme_gray(base_size = 10) +
+  facet_wrap(~cluster)
+
+
+# Herbaceous cover rating per cluster in Lokiriama site
+DT.herb.site.cluster %>%
+  filter (site == "Lokiriama") %>%
+  ggplot(aes(x = reorder(rating, value),
+             y = freq*100)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(size=10)) +
+  ylab("Percentage of plots (%)") +
+  xlab("Herbaceous Cover Rating (%)")+
+  ggtitle("Herbaceous Cover Rating (%), Lokiriama site")+
+  theme_gray(base_size=10) +
+  facet_wrap(~cluster) 
+
+```
+
+
+
+```{r loadsoildata, warning=FALSE, include=FALSE}
+
+
+soil.pred.DT <- read.csv("../Data/Field data/ldsf_mirpred_soilvars_Dec2022.csv", stringsAsFactors = TRUE) %>%
+  mutate(ldsfID = as.character(ldsfID))
+
+# Rename to small letters
+colnames(soil.pred.DT) <- tolower(colnames(soil.pred.DT))
+
+soil.pred.DT$cluster <- ifelse(soil.pred.DT$site == "Chepareria" & soil.pred.DT$plot %in% c(6, 7, 8, 9, 10) & soil.pred.DT$cluster == 17, 18, soil.pred.DT$cluster)
+
+
+#Filter data set based on "site"
+soil.pred.DT <- soil.pred.DT %>%
+  filter(site != "Kalama", depthcode != "")
+
+# glimpse(soil.pred.DT)
+# glimpse(ldsf_combined)
+
+ldsf.soil.pred.DT<- dplyr::left_join(soil.pred.DT, ldsf_combined, by = "ldsfid")
+
+```
+
+```{r}
+filtrerat_dataset_soil <- ldsf.soil.pred.DT %>%
+  filter(depthcode == "Topsoil")
+
+lokiriama_data_soil <- filtrerat_dataset_soil %>%
+  filter(site.x == "Lokiriama")
+
+chep_data_soil <- filtrerat_dataset_soil  %>%
+  filter(site.x == "Chepareria")
+
+chep_data_soil$cluster.x <- ifelse(chep_data_soil$plot.x %in% c(6, 7, 8, 9, 10) & chep_data_soil$cluster.x == 17, 18, chep_data_soil$cluster.x)
+
+g_lok<- ggplot(lokiriama_data_soil, aes(x = factor(cluster.x), y = predsoc)) +
+  geom_boxplot() +
+  labs(title = "Soil Organic Carbon per Cluster in Lokiriama",
+       x = "Cluster",
+       y = "Soil Organic Carbon") +
+  theme_minimal()
+
+print(g_lok)
+
+g_chep<- ggplot(chep_data_soil, aes(x = factor(cluster.x), y = predsoc)) +
+  geom_boxplot() +
+  labs(title = "Soil Organic Carbon per Cluster in Chepareria",
+       x = "Cluster",
+       y = "Soil Organic Carbon") +
+  theme_minimal()
+
+print(g_chep)
+
+
+```
+
+
+```{r}
+
+soil.pred.DT$LC <- ifelse(soil.pred.DT$cluster %in% c(17, 18), 1, 0)
+
+filtered_soil.pred.DT <- soil.pred.DT %>%
+  filter(depthcode=="Topsoil")
+
+
+model_data <- inner_join(filtered_soil.pred.DT, ldsf_combined, by = c("ldsfid"))
+model_data <- model_data %>% mutate(LC.y=as.factor(LC.y))
+
+#glimpse(model_data)
+
+```
+
+
+```{r}
+
+model_SOC <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = model_data)
+summary(model_SOC)
+
+model_herb_cov <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = model_data)
+summary(model_herb_cov)
+
+model_erosion <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = model_data)
+summary(model_erosion)
+
+sjPlot::tab_model(model_SOC)
+sjPlot::tab_model(model_herb_cov)
+sjPlot::tab_model(model_erosion)
+
+performance::check_model(model_SOC)
+
+```
+
+```{r}
+plot_herb_all_clusters <- plot_model(model_herb_cov, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Herbaceous Cover")
+
+plot_viserosion_all_clusters<- plot_model(model_erosion, 
+                                  type = "est",
+                                  transform = NULL,
+                                  vline.color = "gray",
+                                  show.values = TRUE,
+                                  value.offset = 0.4,
+                                  value.size = 3.5,
+                                  colors = c("#CC6A70", "#22A884"),
+                                  title = "Viserosion")
+
+plot_predsoc_all_clusters<- plot_model(model_SOC, 
+                               type = "est",
+                               transform = NULL,
+                               vline.color = "gray",
+                               show.values = TRUE,
+                               value.offset = 0.4,
+                               value.size = 3.5,
+                               colors = c("#CC6A70", "#22A884"),
+                               title = "PredSOC")
+
+combined_plot <- plot_herb_all_clusters + plot_viserosion_all_clusters + plot_predsoc_all_clusters +
+  plot_layout(ncol = 1)
+
+print(combined_plot)
+```
+
+
+```{r}
+lokiriama_model_data <- model_data %>%
+  filter(site.x == "Lokiriama")
+
+
+model_herb_lok <- lmer(herb_cov_total ~ LC.y+ (1 | cluster.x), data = lokiriama_model_data)
+model_viserosion_lok<- lmer(viserosion ~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
+model_predsoc_lok <- lmer(predsoc~ LC.y + (1 | cluster.x), data = lokiriama_model_data)
+
+summary(model_herb_lok)
+summary(model_viserosion_lok)
+summary(model_predsoc_lok)
+
+sjPlot::tab_model(model_herb_lok)
+sjPlot::tab_model(model_viserosion_lok)
+sjPlot::tab_model(model_predsoc_lok)
+
+
+# Skapa plotar
+plot_herb_lok <- plot_model(model_herb_lok, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Herbaceous Cover")
+
+plot_viserosion_lok <- plot_model(model_viserosion_lok, 
+                                  type = "est",
+                                  transform = NULL,
+                                  vline.color = "gray",
+                                  show.values = TRUE,
+                                  value.offset = 0.4,
+                                  value.size = 3.5,
+                                  colors = c("#CC6A70", "#22A884"),
+                                  title = "Viserosion")
+
+plot_predsoc_lok <- plot_model(model_predsoc_lok, 
+                               type = "est",
+                               transform = NULL,
+                               vline.color = "gray",
+                               show.values = TRUE,
+                               value.offset = 0.4,
+                               value.size = 3.5,
+                               colors = c("#CC6A70", "#22A884"),
+                               title = "PredSOC")
+
+combined_plot <- plot_herb_lok + plot_viserosion_lok + plot_predsoc_lok + 
+                 plot_layout(ncol = 1, guides = "collect")
+
+print(combined_plot)
+
+#print(plot_herb_lok)
+#print(plot_viserosion_lok)
+#print(plot_predsoc_lok)
+
+
+```
+```{r}
+chepareria_model_data <- model_data %>%
+  filter(site.x == "Chepareria")
+
+model_herb_chep <- lmer(herb_cov_total ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
+model_viserosion_chep <- lmer(viserosion ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
+model_predsoc_chep <- lmer(predsoc ~ LC.y + (1 | cluster.x), data = chepareria_model_data)
+
+
+summary(model_herb_chep)
+summary(model_viserosion_chep)
+summary(model_predsoc_chep)
+
+tab_model(model_herb_chep)
+tab_model(model_viserosion_chep)
+tab_model(model_predsoc_chep)
+
+
+plot_herb_chep <- plot_model(model_herb_chep, type = "est", title = "Herbaceous Cover - Chepareria")
+plot_viserosion_chep <- plot_model(model_viserosion_chep, type = "est", title = "Viserosion - Chepareria")
+plot_predsoc_chep <- plot_model(model_predsoc_chep, type = "est", title = "PredSOC - Chepareria")
+
+
+combined_plot_chep <- plot_herb_chep + plot_viserosion_chep + plot_predsoc_chep + 
+  plot_layout(ncol = 1, guides = "collect")
+
+print(combined_plot_chep)
+
+```
+
+
+
+```{r}
+# Läs in rasterdata
+rasterLayer_lok <- rast("../Data/Field data/Maps/Lok_2020_2024.tif")
+polygon_lok <- st_read("../Polygons/Polygon_LC_Lokriama (1).geojson")
+
+#  Change coordinate system, in order to buffer in meters
+polygon_lok<- st_transform(polygon_lok, crs = 32633)  
+
+# Create the gap between polygon and outside
+initialBuffer_lok <- st_buffer(polygon_lok, dist = 10)
+
+#Set the outside buffer size (remember to add the size of the gap)
+extendedBuffer_lok <- st_buffer(initialBuffer_lok, dist = 100)
+
+# Create outside buffer by taking the diffrence between the gap and the above
+outerBufferArea_lok <- st_difference(extendedBuffer_lok, initialBuffer_lok)
+
+# Change back to WGS84
+polygonDataWGS84_lok <- st_transform(polygon_lok, crs = 4326)
+outerBufferAreaWGS84_lok <- st_transform(outerBufferArea_lok, crs = 4326)
+
+# # Plot polygon
+ plot(st_geometry(polygonDataWGS84_lok), main = "Polygon med with buffert", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
+# #Add the buffer to plot
+ plot(st_geometry(outerBufferAreaWGS84_lok), col = "lightgreen", add = TRUE)
+
+#Extract data
+livestock_cafe_lok <- terra::extract(rasterLayer_lok, polygonDataWGS84_lok, bind = TRUE)
+month_names <- names(rasterLayer_lok) 
+
+outside_livestock_cafe_lok <- terra::extract(rasterLayer_lok, outerBufferAreaWGS84_lok, bind = TRUE)
+month_names <- names(rasterLayer_lok) 
+
+#plot(rasterLayer_lok["2020 05"])
+#plot(crop(rasterLayer_lok["2020 06"], outerBufferAreaWGS84_lok))
+#plot(polygonDataWGS84_lok$geometry, add=TRUE)
+
+livestock_cafe_tbl_lok <- as_tibble(livestock_cafe_lok)
+outside_livestock_cafe_tbl_lok <- as_tibble(outside_livestock_cafe_lok)
+
+#Add dummie-column where Livestock cafe=1 Non Livetosck cafe=0
+livestock_cafe_tbl_lok$LC<- 1
+outside_livestock_cafe_tbl_lok$LC <- 0
+
+#Combine to one data-set
+ls_in_out_lok= bind_rows(livestock_cafe_tbl_lok , outside_livestock_cafe_tbl_lok)
+ls_in_out_melt_lok <- pivot_longer(ls_in_out_lok, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+ls_in_out_melt_lok$Month <- as.Date(paste0(ls_in_out_melt_lok$Month, " 01"), format="%Y %m %d")
+
+```
+
+```{r}
+
+rasterLayer <- rast("../Data/Field data/Maps/Chep_2020_2024.tif")
+polygon_data_chepp_main <- st_read("../Polygons/LC_Polygon_Main.geojson")
+#raster_df <- as.data.frame(rasterLayer, xy=TRUE)
+
+polygon_data_chepp_main <- st_transform(polygon_data_chepp_main, crs = 32633) 
+
+# Create buffert that will make out the space between the polygon and the "outside"
+initialBuffer <- st_buffer(polygon_data_chepp_main, dist = 10)
+extendedBuffer <- st_buffer(initialBuffer, dist = 100)
+
+# Create the "outside buffert by taking the difference
+outerBufferArea <- st_difference(extendedBuffer, initialBuffer)
+
+# Back to  WGS84 
+extendedBuffer <- st_transform(extendedBuffer, crs = 4326)
+polygonDataWGS84 <- st_transform(polygon_data_chepp_main, crs = 4326)
+outerBufferAreaWGS84 <- st_transform(outerBufferArea, crs = 4326)
+
+# # Plot the polygon and the buffert
+#plot(st_geometry(polygonDataWGS84), main = "Polygon with buffert and space in between", col = "lightblue", xlab = "Longitude", ylab = "Latitude")
+ #plot(st_geometry(outerBufferAreaWGS84), add = TRUE, col = "lightgreen")
+
+#Extract data
+livestock_cafe <- terra::extract(rasterLayer, polygonDataWGS84, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+outside_livestock_cafe <- terra::extract(rasterLayer, outerBufferAreaWGS84, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+livestock_cafe_tbl <- as_tibble(livestock_cafe)
+outside_livestock_cafe_tbl <- as_tibble(outside_livestock_cafe)
+
+livestock_cafe_tbl$LC <- 1
+outside_livestock_cafe_tbl$LC <- 0
+
+ls_in_out = bind_rows(livestock_cafe_tbl , outside_livestock_cafe_tbl)
+ls_in_out_melt <- pivot_longer(ls_in_out, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+ls_in_out_melt$Month <- as.Date(paste0(ls_in_out_melt$Month, " 01"), format="%Y %m %d")
+
+```
+
+```{r}
+
+polygon_data_chepp_annex <- st_read("../Polygons/LC_Polygon_Annex.geojson")
+
+initialBuffer_annex <- st_buffer(polygon_data_chepp_annex, dist = 10)
+extendedBuffer_annex <- st_buffer(initialBuffer_annex, dist = 100)
+outerBufferArea_annex <- st_difference(extendedBuffer_annex, initialBuffer_annex)
+polygonDataWGS84_annex <- st_transform(polygon_data_chepp_annex, crs = 4326)   
+outerBufferAreaWGS84_annex <- st_transform(outerBufferArea_annex, crs = 4326)  
+
+
+plot(st_geometry(polygonDataWGS84_annex), col = "lightblue", main = "Polygon och and outer buffer with space in between", xlab = "Longitude", ylab = "Latitude")
+plot(st_geometry(outerBufferAreaWGS84_annex), add = TRUE, col = "lightgreen")
+
+livestock_cafe_annex <- terra::extract(rasterLayer, polygonDataWGS84_annex, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+outside_livestock_cafe_annex <- terra::extract(rasterLayer, outerBufferAreaWGS84_annex, bind = TRUE)
+month_names <- names(rasterLayer) 
+
+livestock_cafe_tbl_annex <- as_tibble(livestock_cafe_annex)
+outside_livestock_cafe_tbl_annex <- as_tibble(outside_livestock_cafe_annex)
+
+livestock_cafe_tbl_annex$LC <- 1
+outside_livestock_cafe_tbl_annex$LC <- 0
+
+
+ls_in_out_annex = bind_rows(livestock_cafe_tbl_annex , outside_livestock_cafe_tbl_annex)
+ls_in_out_melt_annex <- pivot_longer(ls_in_out_annex, cols = all_of(month_names), names_to = "Month", values_to = "NDVI")
+ls_in_out_melt_annex$Month <- as.Date(paste0(ls_in_out_melt_annex$Month, " 01"), format="%Y %m %d")
+```
+```{r}
+
+ls_in_out_melt_lok_copy <- data.frame(ls_in_out_melt_lok)
+ls_in_out_melt_lok_copy$LCID <- "A"
+
+ls_in_out_melt_copy <- data.frame(ls_in_out_melt)
+ls_in_out_melt_copy$LCID <- "B"
+
+ls_in_out_melt_annex_copy <- data.frame(ls_in_out_melt_annex)
+ls_in_out_melt_annex_copy$LCID <- "C"
+
+
+merged_dataset_ndvi <- rbind(ls_in_out_melt_lok_copy, ls_in_out_melt_annex_copy, ls_in_out_melt_copy)
+
+# Antag att du har en kolumn `YearMonth` som ser ut som "2020-01"
+merged_dataset_ndvi <- merged_dataset_ndvi %>%
+  separate(Month, into = c("Year", "Month"), sep = "-", remove = FALSE, convert = TRUE) %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-")))
+
+
+# write.xlsx(merged_dataset_ndvi , "merged_dataset_ndvi.xlsx")
+# write.xlsx(merged_dataset_ndvi, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_ndvi.xlsx")
+
+```
+
+```{r}
+
+merged_ndvi_chepp <- merged_dataset_ndvi %>%
+  filter(LCID %in% c("B", "C")) 
+
+# För monthly_mean_ndvi_lok
+monthly_mean_ndvi <- merged_ndvi_chepp %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-"))) %>%
+  group_by(Date, LC) %>%
+  summarise(Mean_NDVI_month = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Beräkna årliga medelvärden
+annual_mean_ndvi <- merged_ndvi_chepp %>%
+  group_by(Year, LC) %>%
+  summarise(Mean_NDVI_year = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Plotta månatliga medelvärden
+ggplot(monthly_mean_ndvi, aes(x = Date, y = Mean_NDVI_month, color = factor(LC))) +
+  geom_line() + 
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Månatligt genomsnitt av NDVI",
+       x = "Månad",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+# Plotta årliga medelvärden
+ggplot(annual_mean_ndvi, aes(x = Year, y = Mean_NDVI_year, color = factor(LC), group = LC)) +
+  geom_line() + 
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Årligt genomsnitt av NDVI",
+       x = "År",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+
+```
+
+
+
+```{r}
+
+merged_ndvi_lok <- merged_dataset_ndvi %>%
+  filter(LCID %in% c("A")) 
+
+
+# För prop_na_per_month_lc
+prop_na_per_month_lc <- merged_ndvi_lok %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-"))) %>%
+  group_by(Date, LC) %>%
+  summarise(Prop_NA = mean(is.na(NDVI))) %>%
+  ungroup()
+
+# Filtrera bara de månader där NA är <= 70%, för varje LC
+valid_months_lc <- prop_na_per_month_lc %>%
+  filter(Prop_NA <= 0.7) %>%
+  dplyr::select(Date, LC)
+
+# För monthly_mean_ndvi_lok
+monthly_mean_ndvi_lok <- merged_ndvi_lok %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-"))) %>%
+  group_by(Date, LC) %>%
+  summarise(Mean_NDVI_month_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+# Nu när båda dataramarna har en 'Date' kolumn, använd den för att joina
+filtered_monthly_mean_ndvi_lok <- monthly_mean_ndvi_lok %>%
+  inner_join(valid_months_lc, by = c("Date", "LC"))
+
+# Plotta månatliga medelvärden med filtrering
+ggplot(filtered_monthly_mean_ndvi_lok, aes(x = Date, y = Mean_NDVI_month_lok, color = factor(LC))) +
+  geom_line() + 
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() +
+  labs(title = "Genomsnittlig NDVI per månad, filtrerad",
+       x = "Månad",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+# Beräkna årliga medelvärden
+annual_mean_ndvi_lok <- merged_ndvi_lok %>%
+  group_by(Year, LC) %>%
+  summarise(Mean_NDVI_year_lok = mean(NDVI, na.rm = TRUE)) %>%
+  ungroup()
+
+
+# Plotta årliga medelvärden
+ggplot(annual_mean_ndvi_lok, aes(x = Year, y = Mean_NDVI_year_lok, color = factor(LC), group = LC)) +
+  geom_line() + 
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Årligt genomsnitt av NDVI",
+       x = "År",
+       y = "Genomsnittlig NDVI",
+       color = "LC")
+
+
+
+```
+
+
+```{r}
+
+merged_ndvi_chepp <- merged_ndvi_chepp %>%
+  mutate(YearMonth = format(Date, "%Y-%m"))
+
+# Använd 'YearMonth' för x-axeln i din boxplot
+ggplot(merged_ndvi_chepp, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
+  geom_boxplot() +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "Monthly NDVI, Livestock Cafe Cheppareria",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+
+```
+
+```{r}
+merged_ndvi_lok <- merged_ndvi_lok %>%
+  mutate(YearMonth = format(Date, "%Y-%m"))
+
+ggplot(merged_ndvi_lok, aes(x = YearMonth, y = NDVI, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "NDVI per month, Main LC",
+       x = "Month",
+       y = "NDVI",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+```
+
+```{r}
+
+
+erosion_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2020_StackedModel.tif")
+erosion_chepp_2021  <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2021_StackedModel.tif")
+erosion_chepp_2022 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2022_StackedModel.tif")
+erosion_chepp_2023 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_severeero_2023_StackedModel.tif")
+erosion = c(erosion_chepp_2020, erosion_chepp_2021, erosion_chepp_2022, erosion_chepp_2023)
+
+#Extract data
+livestock_cafe_erosion <- terra::extract(erosion, polygonDataWGS84, bind = TRUE)
+outside_livestock_cafe_erosion <- terra::extract(erosion, outerBufferAreaWGS84, bind = TRUE)
+
+livestock_cafe_erosion_tbl <- as_tibble(livestock_cafe_erosion)
+outside_livestock_cafe_erosion_tbl <- as_tibble(outside_livestock_cafe_erosion)
+
+livestock_cafe_erosion_tbl$LC <- 1
+outside_livestock_cafe_erosion_tbl$LC <- 0
+
+erosion_in_out = bind_rows(livestock_cafe_erosion_tbl, outside_livestock_cafe_erosion_tbl)
+
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "2020"
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "2021"
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "2022"
+colnames(erosion_in_out)[colnames(erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+
+erosion_in_out_long <- pivot_longer(erosion_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "Erosion")
+
+```
+
+```{r}
+#Extract data
+annex_erosion <- terra::extract(erosion, polygonDataWGS84_annex, bind = TRUE)
+outside_annex_erosion <- terra::extract(erosion, outerBufferAreaWGS84_annex, bind = TRUE)
+
+annex_erosion_tbl <- as_tibble(annex_erosion)
+outside_annex_erosion_tbl <- as_tibble(outside_annex_erosion)
+
+annex_erosion_tbl$LC <- 1
+outside_annex_erosion_tbl$LC <- 0
+
+annex_erosion_in_out = bind_rows(annex_erosion_tbl, outside_annex_erosion_tbl)
+
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2020_StackedModel"] <- "2020"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2021_StackedModel"] <- "2021"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2022_StackedModel"] <- "2022"
+colnames(annex_erosion_in_out)[colnames(annex_erosion_in_out) == "chepareria_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+
+annex_erosion_in_out_long <- pivot_longer(annex_erosion_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "Erosion")
+
+
+annual_mean_erosion_annex <- annex_erosion_in_out_long %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion_annex = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+```
+
+```{r}
+#Extract data
+erosion_lok_2020 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2020_StackedModel (1).tif")
+erosion_lok_2021  <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2021_StackedModel (1).tif")
+erosion_lok_2022 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2022_StackedModel (1).tif")
+erosion_lok_2023 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_severeero_2023_StackedModel.tif")
+
+erosion_lok = c(erosion_lok_2020, erosion_lok_2021, erosion_lok_2022, erosion_lok_2023)
+
+lok_erosion <- terra::extract(erosion_lok, polygonDataWGS84_lok, bind = TRUE)
+outside_lok_erosion <- terra::extract(erosion_lok, outerBufferAreaWGS84_lok, bind = TRUE)
+
+lok_erosion_tbl <- as_tibble(lok_erosion)
+outside_lok_erosion_tbl <- as_tibble(outside_lok_erosion)
+
+lok_erosion_tbl$LC <- 1
+outside_lok_erosion_tbl$LC <- 0
+
+lok_erosion_in_out = bind_rows(lok_erosion_tbl, outside_lok_erosion_tbl)
+
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2020_StackedModel (1)"] <- "2020"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2021_StackedModel (1)"] <- "2021"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2022_StackedModel (1)"] <- "2022"
+colnames(lok_erosion_in_out)[colnames(lok_erosion_in_out) == "lokiriama_lc8_s1_pred_severeero_2023_StackedModel"] <- "2023"
+
+lok_erosion_in_out_long <- pivot_longer(lok_erosion_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "Erosion")
+                                    
+                                    
+```
+
+
+```{r}
+
+lok_erosion_in_out_long_copy <- data.frame(lok_erosion_in_out_long)
+lok_erosion_in_out_long_copy<- dplyr::select(lok_erosion_in_out_long_copy, -c(ID))
+lok_erosion_in_out_long_copy$LCID <- "A"
+
+erosion_in_out_long_copy <- data.frame(erosion_in_out_long)
+erosion_in_out_long_copy<- dplyr::select(erosion_in_out_long_copy, -c(ID))
+erosion_in_out_long_copy$LCID <- "B"
+
+annex_erosion_in_out_long_copy <- data.frame(annex_erosion_in_out_long)
+annex_erosion_in_out_long_copy<- dplyr::select(annex_erosion_in_out_long_copy, -c(ID))
+annex_erosion_in_out_long_copy$LCID <- "C"
+
+
+merged_dataset_erosion <- rbind(erosion_in_out_long_copy , annex_erosion_in_out_long_copy, lok_erosion_in_out_long_copy)
+
+# write.xlsx(merged_dataset_erosion, "merged_dataset_erosion.xlsx")
+# write.xlsx(merged_dataset_erosion, "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_erosion.xlsx")
+
+```
+
+
+```{r}
+merged_erosion_chepp <- merged_dataset_erosion %>%
+  filter(LCID %in% c("B", "C")) 
+
+annual_mean_erosion <- merged_erosion_chepp  %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+ggplot(annual_mean_erosion, aes(x = Year, y = mean_annual_erosion, color = factor(LC), group = LC)) +
+  geom_line() +  # Skapa en linjeplot
+  geom_point() + # Lägg till punkter för varje datapunkt
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Erosion  on a yearly average Cheppareria, Main Livestock Cafe",
+       x = "Year",
+       y = "Likelihood of servere erosion ",
+       color = "LC") 
+
+# Plotta boxplott för varje år
+ggplot(merged_erosion_chepp, aes(x = Year, y = Erosion, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Erosion Main LC",
+       x = "Year",
+       y = "Erosion",
+       fill = "LC") + 
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+
+# Calculate change, before and after (just to have it in numbers)
+
+change_LC1_main <- filter(annual_mean_erosion, LC == 1 & Year %in% c("2020", "2023")) %>%
+  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
+
+change_LC0_main <- filter(annual_mean_erosion, LC == 0 & Year %in% c("2020", "2023")) %>%
+  summarise(change = mean_annual_erosion[Year == "2023"] - mean_annual_erosion[Year == "2020"])
+
+```
+
+```{r}
+merged_erosion_lok <- merged_dataset_erosion %>%
+  filter(LCID %in% c("A")) 
+
+annual_mean_erosion_lok <- merged_erosion_lok %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_erosion_lok = mean(Erosion, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_erosion_lok, aes(x = Year, y = mean_annual_erosion_lok, color = factor(LC), group = LC)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "Erosion on a yearly average, Lokiriama Livestock Cafe",
+       x = "Year",
+       y = "Likelihood of servere erosion ",
+       color = "LC") 
+
+ggplot(merged_erosion_lok, aes(x = Year, y = Erosion, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "Erosion Lokiriama",
+       x = "Year",
+       y = "Erosion",
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"))
+
+
+```
+
+
+```{r}
+#Extract data
+soc_chepp_2020 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2020_StackedModel.tif")
+soc_chepp_2021  <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2021_StackedModel.tif")
+soc_chepp_2022 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2022_StackedModel.tif")
+soc_chepp_2023 <- rast("../Data/Field data/Maps/chepareria_lc8_s1_pred_predsoc_2023_StackedModel.tif")
+
+soc_chepp = c(soc_chepp_2020, soc_chepp_2021, soc_chepp_2022, soc_chepp_2023)
+
+main_soc <- terra::extract(soc_chepp, polygonDataWGS84, bind = TRUE)
+outside_main_soc <- terra::extract(soc_chepp, outerBufferAreaWGS84, bind = TRUE)
+
+main_soc_tbl <- as_tibble(main_soc)
+outside_main_soc_tbl <- as_tibble(outside_main_soc)
+
+main_soc_tbl$LC <- 1
+outside_main_soc_tbl$LC <- 0
+
+main_soc_in_out = bind_rows(main_soc_tbl, outside_main_soc_tbl)
+
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2020_StackedModel"] <- "2020"
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2021_StackedModel"] <- "2021"
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2022_StackedModel"] <- "2022"
+colnames(main_soc_in_out)[colnames(main_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2023_StackedModel"] <- "2023"
+
+main_soc_in_out <- main_soc_in_out %>%
+  mutate_at(vars(`2020`, `2021`, `2022`, `2023`), function(x) x / 1000)
+
+main_soc_in_out_long <- pivot_longer(main_soc_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "SOC")
+
+```
+
+
+```{r}
+annex_soc <- terra::extract(soc_chepp, polygonDataWGS84_annex, bind = TRUE)
+outside_annex_soc <- terra::extract(soc_chepp, outerBufferAreaWGS84_annex, bind = TRUE)
+
+annex_soc_tbl <- as_tibble(annex_soc)
+outside_annex_soc_tbl <- as_tibble(outside_annex_soc)
+
+annex_soc_tbl$LC <- 1
+outside_annex_soc_tbl$LC <- 0
+
+annex_soc_in_out = bind_rows(annex_soc_tbl, outside_annex_soc_tbl)
+
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2020_StackedModel"] <- "2020"
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2021_StackedModel"] <- "2021"
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2022_StackedModel"] <- "2022"
+colnames(annex_soc_in_out)[colnames(annex_soc_in_out) == "chepareria_lc8_s1_pred_predsoc_2023_StackedModel"] <- "2023"
+
+annex_soc_in_out <- annex_soc_in_out %>%
+  mutate_at(vars(`2020`, `2021`, `2022`, `2023`), function(x) x / 1000)
+
+annex_soc_in_out_long <- pivot_longer(annex_soc_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "SOC")
+
+```
+
+```{r}
+soc_lok_2020 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2020_StackedModel.tif")
+soc_lok_2021  <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2021_StackedModel.tif")
+soc_lok_2022 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2022_StackedModel.tif")
+soc_lok_2023 <- rast("../Data/Field data/Maps/lokiriama_lc8_s1_pred_predsoc_2023_StackedModel.tif")
+
+soc_lok = c(soc_lok_2020, soc_lok_2021, soc_lok_2022, soc_lok_2023)
+
+lok_soc <- terra::extract(soc_lok, polygonDataWGS84_lok, bind = TRUE)
+outside_lok_soc <- terra::extract(soc_lok, outerBufferAreaWGS84_lok, bind = TRUE)
+
+lok_soc_tbl <- as_tibble(lok_soc)
+outside_lok_soc_tbl <- as_tibble(outside_lok_soc)
+
+lok_soc_tbl$LC <- 1
+outside_lok_soc_tbl$LC <- 0
+
+lok_soc_in_out = bind_rows(lok_soc_tbl, outside_lok_soc_tbl)
+
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2020_StackedModel"] <- "2020"
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2021_StackedModel"] <- "2021"
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2022_StackedModel"] <- "2022"
+colnames(lok_soc_in_out)[colnames(lok_soc_in_out) == "lokiriama_lc8_s1_pred_predsoc_2023_StackedModel"] <- "2023"
+
+lok_soc_in_out <- lok_soc_in_out %>%
+  mutate_at(vars(`2020`, `2021`, `2022`, `2023`), function(x) x / 1000)
+
+lok_soc_in_out_long <- pivot_longer(lok_soc_in_out, 
+                                    cols = c(`2020`, `2021`, `2022`, `2023`), 
+                                    names_to = "Year", 
+                                    values_to = "SOC")
+
+```
+
+```{r}
+
+lok_soc_in_out_long_copy <- data.frame(lok_soc_in_out_long)
+lok_soc_in_out_long_copy<- dplyr::select(lok_soc_in_out_long_copy, -c(ID))
+lok_soc_in_out_long_copy$LCID <- "A"
+
+main_soc_in_out_long_copy <- data.frame(main_soc_in_out_long)
+main_soc_in_out_long_copy<- dplyr::select(main_soc_in_out_long_copy, -c(ID))
+main_soc_in_out_long_copy$LCID <- "B"
+
+annex_soc_in_out_long_copy <- data.frame(annex_soc_in_out_long)
+annex_soc_in_out_long_copy<- dplyr::select(annex_soc_in_out_long_copy, -c(ID))
+annex_soc_in_out_long_copy$LCID <- "C"
+
+
+merged_dataset_soc <- rbind(main_soc_in_out_long_copy , annex_soc_in_out_long_copy, lok_soc_in_out_long_copy)
+
+# write.xlsx(merged_dataset_soc , "merged_dataset_soc.xlsx")
+# write.xlsx(merged_dataset_soc , "C:/Users/Ägaren/OneDrive/Dokument/Exjobb/LiveStockCafe/Data/Cleaned data/merged_dataset_soc.xlsx")
+
+```
+
+
+```{r}
+
+merged_soc_chepp <- merged_dataset_soc %>%
+  filter(LCID %in% c("B", "C"))
+
+annual_mean_soc <- merged_soc_chepp %>%
+  group_by(Year, LC) %>% 
+  summarise(mean_annual_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+ggplot(annual_mean_soc, aes(x = Year, y = mean_annual_soc, color = factor(LC), group = LC)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) +
+  theme_minimal() +
+  labs(title = "SOC on a yearly average, Main Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+
+ggplot(merged_soc_chepp, aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "SOC Main Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+
+
+
+```
+
+
+```{r}
+
+merged_soc_lok <- merged_dataset_soc %>%
+  filter(LCID %in% c("A"))
+
+annual_mean_lok_soc <- merged_dataset_soc%>%
+  group_by(Year, LC) %>% 
+  summarise(mean_lok_soc = mean(SOC, na.rm = TRUE)) %>%
+  ungroup()
+
+
+ggplot(annual_mean_lok_soc, aes(x = Year, y = mean_lok_soc, color = factor(LC), group = LC)) +
+  geom_line() +  
+  geom_point() + 
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) + 
+  theme_minimal() + 
+  labs(title = "SOC yearly average, Lokiriama Livestock Cafe",
+       x = "Year",
+       y = "SOC ",
+       color = "LC") 
+
+ggplot(merged_dataset_soc, aes(x = Year, y = SOC, fill = factor(LC))) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  labs(title = "SOC Lokiriama Livestock Cafe",
+       x = "Year",
+       y = "SOC",
+       fill = "LC") +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D")) 
+
+
+```
+
+```{r}
+
+merged_ndvi_chepp<- merged_ndvi_chepp %>%
+  mutate(
+    Time = interval(start = min(Date), end = Date) / years (1)
+  )
+
+merged_ndvi_chepp$LC <- factor(merged_ndvi_chepp$LC)
+
+
+model_NDVI_interaction <- lmer(NDVI ~ LC * Time + (1 | LCID), data = merged_ndvi_chepp) 
+
+# #check normality of res manually
+# ls_in_out_melt <- ls_in_out_melt %>%
+#   dplyr::mutate(E1 = resid(model_NDVI_interaction),
+#                 fitted = fitted (model_NDVI_interaction))
+# 
+# # Histogram of the residuals 
+# hist(ls_in_out_melt$E1)
+# ls_in_out_melt %>%
+#   ggplot() +
+#   stat_qq(aes(sample = E1))+
+#   stat_qq_line(aes(sample = E1))
+
+#performance::check_model(model_NDVI_interaction)
+summary(model_NDVI_interaction)
+sjPlot::tab_model(model_NDVI_interaction)
+
+plot_NDVI_LC <- plot_model(model_NDVI_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Main LC, NDVI over time")
+
+print(plot_NDVI_LC)
+
+
+# 
+#  predicted_NDVI <- ggpredict(model_NDVI_interaction, terms = c("Time", "LC"))
+# ggplot(predicted_NDVI, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted NDVI over Time Main LC",
+#       x = "Time since start (years)",
+#         y = "NDVI",
+#        color = "LC") +
+#   theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+
+
+```
+
+```{r}
+LC_ndvi <- effect("LC:Time", model_NDVI_interaction)
+summary(LC_ndvi)
+ndvi <- as.data.frame(LC_ndvi)
+ndvi$Time <- as.numeric(ndvi$Time)
+
+
+theme_set(theme_sjplot())
+
+lc_plot <- ggplot(ndvi, aes(y = fit, x = Time, group = LC, color = LC, fill = LC)) +
+  geom_smooth(method = "lm", lwd = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, linetype = 0) +
+  labs(x = "Time", y = "Predicted NDVI", legend="LC") +
+  theme(
+    plot.margin = unit(c(0.5, 0.5, 1, 0.5), "cm"),
+    plot.title = element_text(size = 11, colour = "black", hjust = 0.5),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11, colour = "black", face = "bold"),
+    axis.text.y = element_text(size = 11, colour = "black"),
+    axis.title.y = element_text(size = 11, colour = "black", face = "bold"),
+    legend.title = element_text(size = 10, colour = "black", face = "bold"),
+    strip.text.x = element_text(face = "bold"),
+    legend.text = element_text(size = 10, colour = "black"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_blank(),
+    axis.ticks = element_line(size = 0.25),
+    axis.ticks.length = unit(0.10, "cm"),
+    panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+    legend.position = "right",
+    facet_wrap(vars(LC), nrow = 1)
+  ) +
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC")) +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC"))
+
+lc_plot
+
+
+
+
+
+
+
+```
+
+
+```{r}
+
+merged_dataset_erosion$Year <- as.numeric(as.character(merged_dataset_erosion$Year))
+merged_dataset_erosion$Time <- merged_dataset_erosion$Year - min(merged_dataset_erosion$Year)
+merged_dataset_erosion$LC <- factor(merged_dataset_erosion$LC)
+merged_dataset_erosion$Year <- factor(merged_dataset_erosion$Year)
+
+merged_erosion_chepp<- merged_dataset_erosion %>%
+  filter(LCID %in% c("B", "C"))
+
+model_erosion_interaction <- lmer(Erosion ~ LC * Time + (1 | LCID), data = merged_erosion_chepp)
+
+# #check normality of res manually
+# erosion_in_out_long <- erosion_in_out_long %>%
+#   dplyr::mutate(E1 = resid(model_erosion_interaction),
+#                 fitted = fitted (model_erosion_interaction))
+# 
+# # Histogram of the residuals 
+# 
+# hist(erosion_in_out_long$E1)
+# erosion_in_out_long %>%
+#   ggplot() +
+#   stat_qq(aes(sample = E1))+
+#   stat_qq_line(aes(sample = E1))
+
+
+#performance::check_model(model_erosion_interaction)
+sjPlot::tab_model(model_erosion_interaction)
+
+summary(model_erosion_interaction)
+
+plot_erosion_LC <- plot_model(model_erosion_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Main LC, Erosion over time")
+
+print(plot_erosion_LC)
+
+ # predicted_erosion <- ggpredict(model_erosion_interaction, terms = c("Time", "LC"))
+ # ggplot(predicted_erosion, aes(x = x, y = predicted, color = group)) +
+ #  geom_line() +
+ # labs(title = "Predicted Erosion over Time, Main LC",
+ #        x = "Time since start (years)",
+ #       y = "Predicted Erosion",
+ #        color = "LC") +
+ #   theme_minimal() +
+ #   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+ # 
+
+```
+
+
+```{r}
+LC_erosion <- effect("LC:Time", model_erosion_interaction)
+summary(LC_erosion)
+erosion <- as.data.frame(LC_erosion)
+LC_erosion
+
+erosion$Time <- as.numeric(erosion$Time)
+
+theme_set(theme_sjplot())
+
+plot_erosion <- ggplot(erosion, aes(y = fit, x = Time, group = LC, color = LC, fill = LC)) +
+  geom_smooth(method = "lm", lwd = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, linetype = 0) +
+  labs(x = "Time", y = "Predicted severe erosion", legend="LC") +
+  theme(
+    plot.margin = unit(c(0.5, 0.5, 1, 0.5), "cm"),
+    plot.title = element_text(size = 11, colour = "black", hjust = 0.5),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11, colour = "black", face = "bold"),
+    axis.text.y = element_text(size = 11, colour = "black"),
+    axis.title.y = element_text(size = 11, colour = "black", face = "bold"),
+    legend.title = element_text(size = 10, colour = "black", face = "bold"),
+    strip.text.x = element_text(face = "bold"),
+    legend.text = element_text(size = 10, colour = "black"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_blank(),
+    axis.ticks = element_line(size = 0.25),
+    axis.ticks.length = unit(0.10, "cm"),
+    panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+    legend.position = "right",
+    facet_wrap(vars(LC), nrow = 1)
+  ) +
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC")) +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC"))
+   
+
+plot_erosion
+
+
+
+
+```
+
+
+
+```{r}
+
+merged_dataset_soc$Year <- as.numeric(as.character(merged_dataset_soc$Year))
+merged_dataset_soc$Time <- merged_dataset_soc$Year - min(merged_dataset_soc$Year)
+merged_dataset_soc$LC <- factor(merged_dataset_soc$LC)
+merged_dataset_soc$Year <- factor(merged_dataset_soc$Year)
+
+merged_soc_chepp<- merged_dataset_soc %>%
+  filter(LCID %in% c("B", "C"))
+
+model_soc_interaction <- lmer(SOC ~ LC * Time + (1 | LCID), data = merged_soc_chepp)
+
+#check normality of res manually
+merged_soc_chepp <- merged_soc_chepp%>%
+  dplyr::mutate(E1 = resid(model_soc_interaction),
+                fitted = fitted (model_soc_interaction))
+
+hist(merged_soc_chepp$E1)
+merged_soc_chepp %>%
+  ggplot() +
+  stat_qq(aes(sample = E1))+
+  stat_qq_line(aes(sample = E1))
+
+
+performance::check_model(model_soc_interaction)
+
+sjPlot::tab_model(model_soc_interaction)
+
+summary(model_soc_interaction)
+
+plot_soc_LC <- plot_model(model_soc_interaction, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Main LC, SOC over time")
+
+print(plot_soc_LC) 
+
+
+
+# predicted_soc <- ggpredict(model_soc_interaction, terms = c("Time", "LC"))
+# ggplot( predicted_soc, aes(x = x, y = predicted, color = group)) +
+#   geom_line() +
+#   labs(title = "Predicted SOC over Time Main LC",
+#        x = "Time since start (years)",
+#       y = "Predicted SOC",
+#       color = "LC") +
+#  theme_minimal() +
+#   scale_color_manual(values = c("1" = "blue", "0" = "red"))
+
+
+```
+```{r}
+LC_soc <- effect("LC:Time", model_soc_interaction)
+summary(LC_soc)
+soc <- as.data.frame(LC_soc)
+LC_soc
+
+soc$Time <- as.numeric(soc$Time)
+
+theme_set(theme_sjplot())
+
+plot_soc <- ggplot(soc, aes(y = fit, x = Time, group = LC, color = LC, fill = LC)) +
+  geom_smooth(method = "lm", lwd = 1) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2, linetype = 0) +
+  labs(x = "Time", y = "Predicted SOC", legend="LC") +
+  theme(
+    plot.margin = unit(c(0.5, 0.5, 1, 0.5), "cm"),
+    plot.title = element_text(size = 11, colour = "black", hjust = 0.5),
+    axis.text.x = element_text(size = 10, colour = "black"),
+    axis.title.x = element_text(size = 11, colour = "black", face = "bold"),
+    axis.text.y = element_text(size = 11, colour = "black"),
+    axis.title.y = element_text(size = 11, colour = "black", face = "bold"),
+    legend.title = element_text(size = 10, colour = "black", face = "bold"),
+    strip.text.x = element_text(face = "bold"),
+    legend.text = element_text(size = 10, colour = "black"),
+    panel.grid.minor = element_blank(),
+    plot.background = element_blank(),
+    axis.ticks = element_line(size = 0.25),
+    axis.ticks.length = unit(0.10, "cm"),
+    panel.border = element_rect(colour = "black", fill = NA, size = 0.5),
+    legend.position = "right",
+    facet_wrap(vars(LC), nrow = 1)
+  ) +
+  scale_color_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC")) +
+  scale_fill_manual(values = c("1" = "#0073C2FF", "0" = "#F8766D"), labels = c("1" = "Inside LC", "0" = "Outside LC"))
+
+plot_soc
+
+```
+
+```{r}
+
+library(dplyr)
+
+
+merged_ndvi_chepp_filtered <- merged_ndvi_chepp %>%
+  filter(Year %in% c(2020, 2023)) %>%
+  mutate(Year = factor(Year))
+
+
+model_ndvi_main_ba <- lm(NDVI ~ Year * LC, data = merged_ndvi_chepp_filtered)
+
+performance::check_model(model_ndvi_main_ba)
+
+sjPlot::tab_model(model_ndvi_main_ba)
+
+summary(model_ndvi_main_ba)
+
+plot_ndvi_ba <- plot_model(model_ndvi_main_ba, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Main LC and NDVI over time")
+
+print(plot_ndvi_ba) 
+
+```
+
+
+```{r}
+library(ggplot2)
+library(emmeans)
+
+# Antag att modellen och emmeans redan är korrekt beräknade
+emm_interaction <- emmeans(model_ndvi_main_ba, pairwise ~ LC * Year)
+summary(emm_interaction$emmeans) 
+summary(emm_interaction$contrasts) # Kontrasterna
+ndvi_ba_emmeans <- as.data.frame(emm_interaction$emmeans)
+
+# Omvandla LC till en faktor med specifika etiketter
+ndvi_ba_emmeans$LC <- factor(ndvi_ba_emmeans$LC, levels = c("0", "1"), labels = c("Outside LC", "Inside LC"))
+
+# Skapa plot med ggplot
+LC_plot_emm <- ggplot(ndvi_ba_emmeans, aes(x=Year, y=emmean, col=LC)) + 
+  geom_point(size=3, alpha=0.8) + 
+  geom_errorbar(aes(x=Year, ymax=upper.CL, ymin=lower.CL, col=LC), width=0.1) + 
+  scale_color_manual(
+    values = c("Outside LC" = "#F8766D", "Inside LC" = "#0073C2FF")) + # Fixade ordningen och matchningen av färger och etiketter
+  theme_sjplot() + 
+  xlab("Year") + 
+  ylab("NDVI") +
+  labs(color = "LC") 
+
+LC_plot_emm
+
+
+```
+
+
+
+```{r}
+
+
+merged_soc_chepp_filtered <- merged_soc_chepp %>%
+  filter(Year %in% c(2020, 2023)) %>%
+  mutate(Year = factor(Year))
+
+
+model_soc_main_ba <- lm(SOC ~ Year * LC, data = merged_soc_chepp_filtered)
+
+performance::check_model(model_soc_main_ba)
+
+sjPlot::tab_model(model_soc_main_ba)
+
+summary(model_soc_main_ba)
+
+plot_soc_ba <- plot_model(model_soc_main_ba, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "Main LC and SOC over time")
+
+print(plot_soc_ba) 
+
+
+```
+```{r}
+
+# Antag att modellen och emmeans redan är korrekt beräknade
+emm_interaction_soc <- emmeans(model_soc_main_ba, pairwise ~ LC * Year)
+summary(emm_interaction_soc$emmeans) 
+summary(emm_interaction_soc$contrasts) # Kontrasterna
+soc_ba_emmeans <- as.data.frame(emm_interaction_soc$emmeans)
+
+# Omvandla LC till en faktor med specifika etiketter
+soc_ba_emmeans$LC <- factor(soc_ba_emmeans$LC, levels = c("0", "1"), labels = c("Outside LC", "Inside LC"))
+
+# Skapa plot med ggplot
+LC_plot_emm_soc <- ggplot(soc_ba_emmeans, aes(x=Year, y=emmean, col=LC)) + 
+  geom_point(size=3, alpha=0.8) + 
+  geom_errorbar(aes(x=Year, ymax=upper.CL, ymin=lower.CL, col=LC), width=0.1) + 
+  scale_color_manual(
+    values = c("Outside LC" = "#F8766D", "Inside LC" = "#0073C2FF")) +
+  theme_sjplot() + 
+  xlab("Year") + 
+  ylab("SOC") +
+  labs(color = "LC") 
+
+LC_plot_emm_soc
+
+
+```
+
+
+```{r}
+
+merged_erosion_chepp_filtered <- merged_erosion_chepp %>%
+  filter(Year %in% c(2020, 2023)) %>%
+  mutate(Year = factor(Year))
+
+
+model_erosion_main_ba <- lm(Erosion ~ Year * LC, data = merged_erosion_chepp_filtered)
+
+performance::check_model(model_erosion_main_ba)
+
+sjPlot::tab_model(model_erosion_main_ba)
+
+summary(model_erosion_main_ba)
+
+plot_erosion_ba <- plot_model(model_erosion_main_ba, 
+                            type = "est",
+                            transform = NULL,
+                            vline.color = "gray",
+                            show.values = TRUE,
+                            value.offset = 0.4,
+                            value.size = 3.5,
+                            colors = c("#CC6A70", "#22A884"),
+                            title = "LC and Erosion over time")
+
+print(plot_erosion_ba) 
+
+```
+```{r}
+
+# Antag att modellen och emmeans redan är korrekt beräknade
+emm_interaction_erosion <- emmeans(model_erosion_main_ba, pairwise ~ LC * Year)
+summary(emm_interaction_erosion$emmeans) 
+summary(emm_interaction_erosion$contrasts) # Kontrasterna
+erosion_ba_emmeans <- as.data.frame(emm_interaction_erosion$emmeans)
+
+# Omvandla LC till en faktor med specifika etiketter
+erosion_ba_emmeans$LC <- factor(erosion_ba_emmeans$LC, levels = c("0", "1"), labels = c("Outside LC", "Inside LC"))
+
+# Skapa plot med ggplot
+LC_plot_emm_erosion <- ggplot(erosion_ba_emmeans, aes(x=Year, y=emmean, col=LC)) + 
+  geom_point(size=3, alpha=0.8) + 
+  geom_errorbar(aes(x=Year, ymax=upper.CL, ymin=lower.CL, col=LC), width=0.1) + 
+  scale_color_manual(
+    values = c("Outside LC" = "#F8766D", "Inside LC" = "#0073C2FF")) +
+  theme_sjplot() + 
+  xlab("Year") + 
+  ylab("Erosion") +
+  labs(color = "LC") 
+
+LC_plot_emm_erosion
+
+
+```
+
+
+```{r}
+# plot(soc_chepp_2020)
+# plot(soc_chepp_2023)
+
+soc_chepp_2020_new <- rast("../Data/Field data/New Maps/chepareria_lc8_s1_pred_predsoc_2021_StackedModel.tif")
+soc_chepp_2023_new  <- rast("../Data/Field data/New Maps/chepareria_lc8_s1_pred_predsoc_2023_StackedModel.tif")
+
+
+
+soc_chepp_2023_scaled <- soc_chepp_2023_new / 1000
+soc_chepp_2020_scaled <- soc_chepp_2020_new / 1000
+
+# Ta skillnaden mellan de skalerade rasterfilerna
+soc_diff <- soc_chepp_2023_scaled - soc_chepp_2020_scaled
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster <- crop(soc_diff, buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+plot(cropped_raster, col=colors, main="SOC Change (2023 - 2020) within and around the Polygon", range=c(-10,10))
+
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+```
+```{r}
+erosion_chepp_2020_new <- rast("../Data/Field data/New Maps/chepareria_lc8_s1_pred_severeero_2021_StackedModel (1).tif")
+erosion_chepp_2023_new  <- rast("../Data/Field data/New Maps/chepareria_lc8_s1_pred_severeero_2023_StackedModel.tif")
+
+
+erosion_diff <- erosion_chepp_2020_new - erosion_chepp_2023_new
+
+# negative_colors <- colorRampPalette(c("blue", "white"))(50) 
+# positive_colors <- colorRampPalette(c("white", "red"))(50)
+# colors <- c(negative_colors, positive_colors)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+plot(erosion_diff , col=colors, main="Erosion Change (2023 - 2020)", 
+     zlim=c(data_min, data_max))
+
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster_erosion <- crop(erosion_diff , buffered_polygon)
+
+plot(cropped_raster_erosion, col=colors, main="Erosion Change (2023 - 2020) within and around the Polygon", range=c(-50,50))
+
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+
+```
+
+```{r}
+layer_2020 <- rasterLayer[["2020 12"]]
+layer_2023 <- rasterLayer[["2023 12"]]
+
+NDVI_diff <- layer_2023 - layer_2020
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster_NDVI <- crop(NDVI_diff, buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+plot(cropped_raster_NDVI, col=colors, main="NDVI Change (December 2023 - December 2020) within and around the Polygon", range=c(-0.3,0.3))
+ 
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+```
+```{r}
+index2020 <- grep("2020", names(rasterLayer))
+index2023 <- grep("2023", names(rasterLayer))
+
+avg2020 <- mean(rasterLayer[[index2020]], na.rm = TRUE)
+avg2023 <- mean(rasterLayer[[index2023]], na.rm = TRUE)
+
+NDVI_diff <- avg2023 - avg2020
+
+buffered_polygon <- buffer(vect(polygonDataWGS84), width=500) 
+
+cropped_raster_NDVI <- crop(NDVI_diff, buffered_polygon)
+
+colors <- colorRampPalette(brewer.pal(11, "RdYlBu"))(100)
+
+data_min <- min(cropped_raster[], na.rm = TRUE)
+data_max <- max(cropped_raster[], na.rm = TRUE)
+
+
+plot(cropped_raster_NDVI, col=colors, main="NDVI Change yearly average", range=c(-0.3,0.3))
+ 
+lines(vect(polygonDataWGS84), col="black", lwd=2)
+```
+
+```{r}
+model_erosion3 <- lmer(Erosion ~ Year * LC + (1|LCID) + (1|LCID:LC), data = merged_dataset_erosion)
+
+```
